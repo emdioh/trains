@@ -12,6 +12,14 @@ GetTrain_pubsub:
 
 GetTrain: GetTrain_http GetTrain_pubsub
 
+SCHEDULER_PARAMS=pubsub Trigger_train_get --schedule "30 18 * * *" --topic "trains" \
+		--message-body-from-file=get_trains.cronjob.payload --time-zone="Europe/Rome"
+CreateCronJob:
+	gcloud scheduler jobs create $(SCHEDULER_PARAMS)
+
+UpdateCronJob:
+	gcloud scheduler jobs update $(SCHEDULER_PARAMS)
+
 pubsub: GetTrain_pubsub
 all: GetTrain
 

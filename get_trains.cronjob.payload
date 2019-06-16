@@ -1,0 +1,16 @@
+{
+	"trains":[
+      {
+        "train":"319",
+        "station":"S01301"
+      },
+      {
+        "train":"451",
+        "station":"S01301"
+      },
+      {
+        "train":"658",
+        "station":"S06725"
+      }
+    ]
+}
