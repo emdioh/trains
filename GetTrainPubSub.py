@@ -37,25 +37,19 @@ def save_train(train_no, departure_station, data):
     datastore_client.put(task)
     return True
     
-def get_train(request):
+def get_train(data, context):
     """Responds to any HTTP request.
     Args:
-        request (flask.Request): HTTP request object.
-    Returns:
-        The response text or any set of values that can be turned into a
-        Response object using
-        `make_response <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>`.
+         data (dict): The dictionary with data specific to this type of event.
+         context (google.cloud.functions.Context): The Cloud Functions event
+         metadata.
     """
+
     from flask import abort
-    request_json = request.get_json()
-    print("Request: {}".format(json.dumps(request_json)))
+    print("data: {}".format(json.dumps(data)))
 
     good = False
-    if not request_json:
-        print('Expected json payload [{"train":"","station":""}]')
-        return abort(400)
-    
-    for r in request_json:
+    for r in data:
         train = None
         station = None
         if 'train' in r:
@@ -67,19 +61,18 @@ def get_train(request):
             print ('Got train:{} station:{}'.format(train,station))
             continue
         print('Getting data for {}-{}'.format(train, station))
-        data = get_train_data(train, station)
+        train_data = get_train_data(train, station)
 
-        if data:
-            if save_train(train, station, data):
+        if train_data:
+            if save_train(train, station, train_data):
                good = True
             else:
-               print("Failed saving data")
+               print("Failed saving train data")
         else:
-            print("Failed retrieving data")
+            print("Failed retrieving train data")
 
     if good:
-        return 'OK'
+        print('OK')
  
-    return abort(500)
 
 
