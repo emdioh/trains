@@ -49,7 +49,7 @@ def get_train(data, context):
     print("data: {}".format(json.dumps(data)))
 
     good = False
-    for r in data:
+    for r in data['trains']:
         train = None
         station = None
         if 'train' in r:
