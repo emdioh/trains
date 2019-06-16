@@ -37,42 +37,45 @@ def save_train(train_no, departure_station, data):
     datastore_client.put(task)
     return True
     
-def get_train(data, context):
+def main(request):
     """Responds to any HTTP request.
     Args:
-         data (dict): The dictionary with data specific to this type of event.
-         context (google.cloud.functions.Context): The Cloud Functions event
-         metadata.
+        request (flask.Request): HTTP request object.
+    Returns:
+        The response text or any set of values that can be turned into a
+        Response object using
+        `make_response <http://flask.pocoo.org/docs/1.0/api/#flask.Flask.make_response>`.
     """
+    request_json = request.get_json()
+    train = None
+    station = None
+
+    if request.args:
+        for k in request.args.keys():
+            print("args - {}:{}".format(k,request.args[k]))
+    if request_json:
+        for k in request_json.keys():
+            print("args - {}:{}".format(k,request_json[k]))
+
+    if request.args and 'train' in request.args:
+        train = request.args['train']
+    if request.args and 'station' in request.args:
+        station = request.args['station']
+    if request_json and 'train' in request_json:
+        train = request_json['train']
+    if request_json and 'station' in request_json:
+        station = request_json['station']
+    if not train or not station:
+        print ('train and station are parameters are required')
+        return f'train and station parameters are required'
+    print('Getting data for {}-{}'.format(train, station))
+    data = get_train_data(train, station)
+
+    if data:
+        if save_train(train, station, data):
+           return 'OK'
 
     from flask import abort
-    print("data: {}".format(json.dumps(data)))
-
-    good = False
-    for r in data['trains']:
-        train = None
-        station = None
-        if 'train' in r:
-            train = r['train']
-        if 'station' in r:
-            station = r['station']
-        if not train or not station:
-            print ('train and station are parameters are required')
-            print ('Got train:{} station:{}'.format(train,station))
-            continue
-        print('Getting data for {}-{}'.format(train, station))
-        train_data = get_train_data(train, station)
-
-        if train_data:
-            if save_train(train, station, train_data):
-               good = True
-            else:
-               print("Failed saving train data")
-        else:
-            print("Failed retrieving train data")
-
-    if good:
-        print('OK')
- 
+    return abort(500)
 
 
