@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="60">
+<title>Trains</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --card: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e4e4e0;
+    --ok: #1f7a3d; --ok-bg: #e3f3e8; --late: #8a5a00; --late-bg: #fbf0d6; --bad: #b3261e; --bad-bg: #fbe3e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --card: #1e1e21; --text: #ececee; --muted: #9a9aa2; --line: #2e2e33;
+      --ok: #6fd08f; --ok-bg: #173323; --late: #f0c060; --late-bg: #3a2e12; --bad: #ff8a80; --bad-bg: #3d1a18;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  .muted { color: var(--muted); font-size: .875rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+  .top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .name { font-weight: 600; }
+  .delay { font-weight: 700; font-size: 1.1rem; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .ok { color: var(--ok); background: var(--ok-bg); }
+  .late { color: var(--late); background: var(--late-bg); }
+  .bad { color: var(--bad); background: var(--bad-bg); }
+  .none { color: var(--muted); background: var(--bg); }
+  .where { margin-top: 8px; }
+  .history { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .chip { font-size: .75rem; padding: 2px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
+  .empty { text-align: center; padding: 32px 16px; }
+  code { font-size: .875rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Trains</h1>
+    <span class="muted">{{.Now.Format "Mon 2 Jan, 15:04"}} · refreshes every minute</span>
+  </header>
+
+  {{range .Trains}}
+  <section class="card">
+    <div class="top">
+      <div>
+        <div class="name">{{if .Label}}{{.Label}} · {{end}}{{with .Today}}{{.Name}}{{else}}{{.Number}}{{end}}</div>
+        {{with .Today}}
+        <div class="muted">{{title .OriginName}} {{hhmm .ScheduledDeparture}} → {{title .DestinationName}} {{hhmm .ScheduledArrival}}</div>
+        {{end}}
+      </div>
+      {{if .Today}}
+      <span class="delay {{level .Today .LateAfter}}">{{delay .Today}}</span>
+      {{else}}
+      <span class="delay none">{{if .RunsToday}}No data yet{{else}}Not today{{end}}</span>
+      {{end}}
+    </div>
+    {{with .Today}}
+    <div class="where">{{position .}}{{if .Partial}} · partly cancelled{{end}}</div>
+    <div class="muted">Updated {{ago .FetchedAt}}</div>
+    {{end}}
+    {{if .NotifyAt}}<div class="muted">Notifies at {{.NotifyAt}} if {{.LateAfter}}+ min late</div>{{end}}
+    {{if .History}}
+    {{$late := .LateAfter}}
+    <div class="history">
+      {{range .History}}<span class="chip {{level . $late}}" title="{{position .}}">{{day .RunDate}} {{delay .}}</span>{{end}}
+    </div>
+    {{end}}
+  </section>
+  {{else}}
+  <section class="card empty">
+    <p>No trains configured.</p>
+    <p class="muted">Add some under <code>trains:</code> in the config file; they show up within a minute.</p>
+  </section>
+  {{end}}
+</main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# OpenRC service for Alpine. Install as /etc/init.d/trains.
+
+name="trains"
+description="Italian train tracker"
+command="/usr/local/bin/trains"
+command_args="run -config /etc/trains/trains.yaml"
+command_user="trains:trains"
+command_background=true
+directory="/var/lib/trains"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/trains.log"
+error_log="/var/log/trains.log"
+
+depend() {
+	need net
+	after firewall
+}
+
+start_pre() {
+	checkpath -f -o trains:trains -m 0644 /var/log/trains.log
+	if [ -f /etc/trains/env ]; then
+		set -a
+		. /etc/trains/env
+		set +a
+	fi
+}

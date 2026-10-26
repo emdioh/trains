@@ -1,0 +1,98 @@
+# trains
+
+Tracks the on-time status of a few Italian trains. It notifies you at a set
+time if a train is late or cancelled, and serves a page with every train's
+delay and last known position.
+
+It is a single static Go binary with no runtime dependencies. Data comes
+from [ViaggiaTreno](https://www.viaggiatreno.it), which publishes RFI's live
+circulation data for every train on the Italian network: Trenitalia, Italo,
+Trenord and the rest.
+
+## How it works
+
+- Every minute, `trains run` checks which configured trains need polling. A
+  train is polled every `poll_interval` (default 5 min), starting 30 min
+  before its scheduled departure and stopping once it arrives or is
+  cancelled. Outside that window it isn't polled at all.
+- Every reading is stored in SQLite, including the raw API response. So are
+  fetch errors and notification checks.
+- At a train's `notify_at` time, it fetches a fresh reading. A message is
+  sent if the train is at least `late_after` minutes late, cancelled or
+  partly cancelled. On time means no message. If ViaggiaTreno can't be
+  reached for 30 minutes after `notify_at`, a "status unknown" message is
+  sent instead. While the service is running, silence means on time.
+- The status page (`listen`, default `:8080`) shows today's delay, last
+  position and schedule for each train, plus its last 14 runs. It
+  refreshes every minute. The same data is at `/api/trains` as JSON.
+- The configuration is re-read when it changes, so trains and notifiers can
+  be edited while the service runs. `listen` and `database` need a restart.
+
+## Configuration
+
+See [`config.example.yaml`](config.example.yaml). A train needs only its
+number:
+
+```yaml
+trains:
+  - number: 2034
+    label: Morning commute
+    days: mon-fri
+    notify_at: "07:20"
+```
+
+Some numbers run from more than one origin. `trains check NUMBER` lists the
+runs and their origin codes; set `origin` to the one you want.
+
+Notifications go to Telegram or [ntfy](https://ntfy.sh). For Telegram,
+create a bot with @BotFather and get your chat id from @userinfobot. Other
+channels implement the `Notifier` interface in `internal/notify`.
+
+## Commands
+
+```
+trains run [-config trains.yaml]          track trains and serve the page
+trains check [-config trains.yaml] 2034   print a train's live status
+trains test-notify [-config trains.yaml]  send a test message
+trains version
+```
+
+## Building
+
+Building needs Go 1.26 or later. `go` fetches it automatically if an older
+one is installed.
+
+```sh
+make test
+make build          # ./trains for this machine
+make dist           # dist/trains-linux-{amd64,arm64}
+```
+
+## Installing on a server
+
+Copy a binary and the `deploy/` directory to the server (an LXC container is
+fine), then run, as root:
+
+```sh
+deploy/install.sh trains-linux-amd64
+```
+
+It installs `/usr/local/bin/trains`, creates a `trains` user and
+`/var/lib/trains` for the database, and writes `/etc/trains/trains.yaml` and
+`/etc/trains/env` (for the Telegram secrets) if they don't exist. It then
+installs and starts a systemd or OpenRC service, whichever the system uses.
+To update, run it again with the new binary: configuration and data are
+kept.
+
+## Caveats
+
+- ViaggiaTreno's API is unofficial and undocumented. It can change without
+  notice, and the field meanings here come from community projects. In
+  particular, cancellations are recognised by `tipoTreno` (`ST` cancelled;
+  `PP`, `SI` and `SF` partly cancelled), and that needs checking against a
+  real cancelled train. If a field changes type, it reads as empty rather
+  than failing the whole response.
+- There is no GPS: the position is the last station where the train was
+  detected.
+- Tracking is per calendar day: a train still running at midnight stops
+  being tracked then. Night trains aren't handled yet.

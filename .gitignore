@@ -1,0 +1,7 @@
+/dist/
+/trains
+*.db
+*.db-shm
+*.db-wal
+/trains.yaml
+.env

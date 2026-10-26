@@ -1,0 +1,20 @@
+[Unit]
+Description=Italian train tracker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/trains run -config /etc/trains/trains.yaml
+EnvironmentFile=-/etc/trains/env
+WorkingDirectory=/var/lib/trains
+User=trains
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/trains
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

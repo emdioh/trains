@@ -1,0 +1,26 @@
+{
+  "numeroTreno": 2034,
+  "categoria": "REG",
+  "compNumeroTreno": "REG 2034",
+  "origine": "MILANO CENTRALE",
+  "destinazione": "BERGAMO",
+  "codOrigine": "S01700",
+  "orarioPartenza": 1761457500000,
+  "orarioArrivo": 1761461400000,
+  "ritardo": 12,
+  "stazioneUltimoRilevamento": "TREVIGLIO",
+  "oraUltimoRilevamento": 1761459480000,
+  "compOraUltimoRilevamento": "07:18",
+  "nonPartito": false,
+  "arrivato": false,
+  "inStazione": false,
+  "tipoTreno": "PG",
+  "provvedimento": 0,
+  "riprogrammazione": "N",
+  "compRitardo": ["ritardo 12 min.", "delay 12 min.", null],
+  "fermate": [
+    {"stazione": "MILANO CENTRALE", "id": "S01700", "programmata": 1761457500000, "effettiva": 1761458220000, "ritardo": 12, "actualFermataType": 1},
+    {"stazione": "TREVIGLIO", "id": "S01708", "programmata": 1761458700000, "effettiva": 1761459480000, "ritardo": 13, "actualFermataType": 1},
+    {"stazione": "BERGAMO", "id": "S01529", "programmata": 1761461400000, "effettiva": null, "ritardo": 0, "actualFermataType": 0}
+  ]
+}

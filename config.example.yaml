@@ -1,0 +1,32 @@
+# Copy to trains.yaml (or /etc/trains/trains.yaml) and edit.
+# The file is re-read every minute: train and notifier changes apply
+# without a restart. listen and database need a restart.
+
+listen: ":8080"            # status page
+database: trains.db        # SQLite; keeps every reading
+poll_interval: 5m          # how often a running train is checked
+late_after: 5              # minutes of delay that count as late (per-train override below)
+
+# ${VAR} is replaced with the environment variable, so secrets can live in
+# an environment file instead of here.
+notifiers:
+  - type: telegram         # bot from @BotFather; chat id from @userinfobot
+    token: ${TELEGRAM_TOKEN}
+    chat_id: ${TELEGRAM_CHAT_ID}
+  # - type: ntfy
+  #   url: https://ntfy.sh/my-trains
+  #   token: ${NTFY_TOKEN}   # optional
+
+trains:
+  - number: 2034
+    label: Morning commute
+    days: mon-fri          # list ([mon, wed]), range (mon-fri), weekdays, weekends or daily (default)
+    notify_at: "07:20"     # notify at this time if the train is late or cancelled
+  - number: 2077
+    label: Evening
+    days: weekdays
+    notify_at: "17:45"
+    late_after: 10
+  # - number: 9544
+  #   origin: S01700       # only when the number runs from several origins;
+  #                        # `trains check 9544` lists them
