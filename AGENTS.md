@@ -8,7 +8,7 @@ project.
 Current projects:
 
 - `audiopub`: EPUB to multi-voice audiobook converter
-- `dashboard`: one-click git + docker compose redeploy dashboard
+- `dashboard`: one-click redeploys (git + docker compose, or any commands), over SSH or local
 - `trains`: Italian train delay tracker with notifications and a status page (Go)
 
 ## Working here
