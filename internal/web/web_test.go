@@ -293,3 +293,15 @@ func TestRefreshAndAutoReload(t *testing.T) {
 		t.Error("nothing running: the page still reloads itself")
 	}
 }
+
+func TestDeleteFromList(t *testing.T) {
+	e := newEnv(t, "")
+	page := html.UnescapeString(get(t, e.srv.URL))
+	if !strings.Contains(page, `action="delete"`) || !strings.Contains(page, `name="key" value="9544"`) {
+		t.Fatal("the list has no delete button per train")
+	}
+	post(t, e.srv.URL+"/delete", url.Values{"key": {"9544"}})
+	if strings.Contains(e.keys(t), "9544") {
+		t.Error("train still listed after delete")
+	}
+}

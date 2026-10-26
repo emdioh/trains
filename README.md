@@ -31,8 +31,9 @@ Trenord and the rest.
 
 ## Trains
 
-Trains are managed on the status page: **Add a train**, or **Edit** next to
-one. They are kept in the database, and changes apply immediately.
+Trains are managed on the status page: **Add a train**, or **Edit** and
+**Delete** next to each one. Deleting stops tracking; the train's history
+stays in the database. Changes apply immediately.
 
 - **Number:** the train number, e.g. 2034.
 - **Departure station:** train numbers aren't unique, and different

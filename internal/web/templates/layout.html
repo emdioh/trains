@@ -36,7 +36,9 @@
   .empty { text-align: center; padding: 32px 16px; }
   code { font-size: .875rem; }
   a { color: inherit; }
-  .edit { font-size: .875rem; color: var(--muted); text-decoration: none; margin-left: 8px; }
+  .edit { font: inherit; font-size: .875rem; color: var(--muted); text-decoration: none; margin-left: 8px;
+    background: none; border: 0; padding: 0; cursor: pointer; }
+  form.inline { display: inline; }
   .edit:hover { color: var(--text); text-decoration: underline; }
   .button { display: inline-block; font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 8px;
     border: 1px solid var(--line); background: var(--card); color: var(--text); text-decoration: none; cursor: pointer; }
