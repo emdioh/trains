@@ -72,12 +72,13 @@ make dist           # dist/trains-linux-{amd64,arm64}
 
 ## Installing on a server
 
-Each [release](https://github.com/emdioh/things/releases) has a tarball per
-architecture holding the binary, `deploy/` and the example config. On the
+Each [release](https://github.com/emdioh/things/releases) has a tarball and
+a zip per architecture, both holding the binary, `deploy/` and the example
+config. On the
 server (an LXC container is fine), as root:
 
 ```sh
-v=v0.1.0 arch=amd64
+v=v0.1.2 arch=amd64
 wget https://github.com/emdioh/things/releases/download/trains-$v/trains-$v-linux-$arch.tar.gz
 tar -xzf trains-$v-linux-$arch.tar.gz
 deploy/install.sh trains-linux-$arch

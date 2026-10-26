@@ -48,4 +48,4 @@ jobs:
         run: |
           gh release create "trains-$VERSION" dist/* --target "$GITHUB_SHA" \
             --title "trains $VERSION" \
-            --notes "Static Linux binaries of trains. Each tarball also holds deploy/ and config.example.yaml: unpack it on the server and run \`deploy/install.sh trains-linux-<arch>\` as root to install or update."
+            --notes "Static Linux binaries of trains. Each archive (.tar.gz or .zip) also holds deploy/ and config.example.yaml: unpack it on the server and run \`deploy/install.sh trains-linux-<arch>\` as root to install or update."
