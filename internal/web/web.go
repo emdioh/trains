@@ -87,7 +87,8 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var buf strings.Builder
-	data := map[string]any{"Trains": trains, "Now": s.Now().In(vt.Rome)}
+	data := map[string]any{"Trains": trains, "Now": s.Now().In(vt.Rome),
+		"Notify": len(s.Config().Notifiers) > 0}
 	if err := s.page.Execute(&buf, data); err != nil {
 		s.fail(w, err)
 		return

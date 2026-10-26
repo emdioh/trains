@@ -122,7 +122,10 @@ func (t *Tracker) reload() {
 	t.mu.Lock()
 	t.cfg = cfg
 	t.mu.Unlock()
-	t.Log.Info("config reloaded", "trains", len(cfg.Trains))
+	t.Log.Info("config reloaded", "trains", len(cfg.Trains), "notifiers", len(cfg.Notifiers))
+	for _, w := range cfg.Warnings {
+		t.Log.Warn(w)
+	}
 }
 
 func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train config.Train, notifiers []notify.Notifier, now time.Time) {
@@ -274,6 +277,7 @@ func toReading(key string, run vt.Run, s *vt.Status, raw []byte, now time.Time) 
 // the message.
 func (t *Tracker) check(ctx context.Context, notifiers []notify.Notifier, key, date string, now time.Time, send bool, msg notify.Message) {
 	var err error
+	send = send && len(notifiers) > 0
 	if send {
 		err = notify.All(ctx, notifiers, msg)
 		if err != nil {

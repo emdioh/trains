@@ -19,9 +19,10 @@ import (
 	vt "trains/internal/viaggiatreno"
 )
 
-func newServer(t *testing.T) *httptest.Server {
+func newServer(t *testing.T, notifiers string) *httptest.Server {
 	t.Helper()
-	cfg, err := config.Parse([]byte(`trains:
+	cfg, err := config.Parse([]byte(notifiers + `
+trains:
   - {number: 2034, label: Morning commute, notify_at: "07:20"}
   - {number: 2077, label: Evening, days: weekdays}
   - {number: 9544, days: weekends}
@@ -61,13 +62,20 @@ func newServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func TestPage(t *testing.T) {
-	srv := newServer(t)
-	resp, err := http.Get(srv.URL)
+func get(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+	return string(body)
+}
+
+func TestPage(t *testing.T) {
+	srv := newServer(t, "notifiers: [{type: ntfy, url: 'https://ntfy.sh/x'}]")
+	body := []byte(get(t, srv.URL))
 	page := html.UnescapeString(string(body))
 	if out := os.Getenv("WRITE_PAGE"); out != "" {
 		os.WriteFile(out, body, 0o644)
@@ -83,8 +91,16 @@ func TestPage(t *testing.T) {
 	}
 }
 
+func TestPageWithoutNotifiers(t *testing.T) {
+	srv := newServer(t, "")
+	page := html.UnescapeString(get(t, srv.URL))
+	if !strings.Contains(page, "Would notify at 07:20, but no notifier is configured") {
+		t.Error("page doesn't say notifications are off")
+	}
+}
+
 func TestAPI(t *testing.T) {
-	srv := newServer(t)
+	srv := newServer(t, "")
 	resp, err := http.Get(srv.URL + "/api/trains")
 	if err != nil {
 		t.Fatal(err)

@@ -84,6 +84,12 @@ func run(configPath string, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	for _, w := range cfg.Warnings {
+		log.Warn(w)
+	}
+	if len(cfg.Notifiers) == 0 {
+		log.Warn("no notifiers configured: notifications are off")
+	}
 	t := tracker.New(configPath, cfg, vt.New(cfg.BaseURL), st, log)
 	srv := &http.Server{
 		Addr:              cfg.Listen,
@@ -159,10 +165,18 @@ func testNotify(configPath string) error {
 	}
 	ns := notify.New(cfg.Notifiers)
 	if len(ns) == 0 {
-		return errors.New("no notifiers configured")
+		return errors.Join(append([]error{errors.New("no notifiers configured")}, warningErrors(cfg)...)...)
 	}
 	return notify.All(context.Background(), ns, notify.Message{
 		Title: "🚆 trains: test notification",
 		Body:  "If you can read this, notifications work.",
 	})
+}
+
+func warningErrors(cfg *config.Config) []error {
+	var errs []error
+	for _, w := range cfg.Warnings {
+		errs = append(errs, errors.New(w))
+	}
+	return errs
 }

@@ -72,10 +72,28 @@ func TestParseErrors(t *testing.T) {
 		"duplicate train": "trains: [{number: 1}, {number: 1}]",
 		"bad day":         "trains: [{number: 1, days: [funday]}]",
 		"bad notifier":    "notifiers: [{type: pigeon}]",
-		"missing token":   "notifiers: [{type: telegram, chat_id: '1'}]",
 	} {
 		if _, err := Parse([]byte(yaml)); err == nil {
 			t.Errorf("%s: no error", name)
 		}
+	}
+}
+
+func TestIncompleteNotifierIsDisabled(t *testing.T) {
+	t.Setenv("TELEGRAM_TOKEN", "")
+	cfg, err := Parse([]byte(`
+notifiers:
+  - {type: telegram, token: "${TELEGRAM_TOKEN}", chat_id: "42"}
+  - {type: ntfy, url: https://ntfy.sh/x}
+trains: [{number: 1}]
+`))
+	if err != nil {
+		t.Fatalf("a notifier without its token stopped the config: %v", err)
+	}
+	if len(cfg.Notifiers) != 1 || cfg.Notifiers[0].Type != "ntfy" {
+		t.Errorf("notifiers = %+v, want only ntfy", cfg.Notifiers)
+	}
+	if len(cfg.Warnings) != 1 {
+		t.Errorf("warnings = %q, want one about telegram", cfg.Warnings)
 	}
 }

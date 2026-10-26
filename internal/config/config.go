@@ -25,6 +25,9 @@ type Config struct {
 	BaseURL      string           `yaml:"viaggiatreno_url"`
 	Notifiers    []NotifierConfig `yaml:"notifiers"`
 	Trains       []Train          `yaml:"trains"`
+
+	// Warnings lists what was ignored, like a notifier without its token.
+	Warnings []string `yaml:"-"`
 }
 
 // NotifierConfig holds the settings of one notification channel. Which
@@ -129,20 +132,31 @@ func (c *Config) validate() error {
 			return fmt.Errorf("train %s: late_after must be at least 1", t.Key())
 		}
 	}
+	// A notifier missing its settings (e.g. ${TELEGRAM_TOKEN} not set yet) is
+	// left out rather than stopping the service: tracking and the status
+	// page work without notifications.
+	var notifiers []NotifierConfig
 	for i, n := range c.Notifiers {
+		var missing string
 		switch n.Type {
 		case "telegram":
 			if n.Token == "" || n.ChatID == "" {
-				return fmt.Errorf("notifiers[%d]: telegram needs token and chat_id", i)
+				missing = "token and chat_id"
 			}
 		case "ntfy":
 			if n.URL == "" {
-				return fmt.Errorf("notifiers[%d]: ntfy needs url", i)
+				missing = "url"
 			}
 		default:
 			return fmt.Errorf("notifiers[%d]: unknown type %q", i, n.Type)
 		}
+		if missing != "" {
+			c.Warnings = append(c.Warnings, fmt.Sprintf("notifiers[%d]: %s needs %s; it is disabled", i, n.Type, missing))
+			continue
+		}
+		notifiers = append(notifiers, n)
 	}
+	c.Notifiers = notifiers
 	return nil
 }
 

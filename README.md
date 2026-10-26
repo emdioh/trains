@@ -44,7 +44,9 @@ trains:
 Some numbers run from more than one origin. `trains check NUMBER` lists the
 runs and their origin codes; set `origin` to the one you want.
 
-Notifications go to Telegram or [ntfy](https://ntfy.sh). For Telegram,
+Notifications go to Telegram or [ntfy](https://ntfy.sh). They are optional:
+a notifier whose settings are empty (say `${TELEGRAM_TOKEN}` isn't set) is
+disabled with a warning in the log, and everything else keeps working. For Telegram,
 create a bot with @BotFather and get your chat id from @userinfobot. Other
 channels implement the `Notifier` interface in `internal/notify`.
 

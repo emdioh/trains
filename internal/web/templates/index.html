@@ -64,7 +64,7 @@
     <div class="where">{{position .}}{{if .Partial}} · partly cancelled{{end}}</div>
     <div class="muted">Updated {{ago .FetchedAt}}</div>
     {{end}}
-    {{if .NotifyAt}}<div class="muted">Notifies at {{.NotifyAt}} if {{.LateAfter}}+ min late</div>{{end}}
+    {{if .NotifyAt}}<div class="muted">{{if $.Notify}}Notifies at {{.NotifyAt}} if {{.LateAfter}}+ min late{{else}}Would notify at {{.NotifyAt}}, but no notifier is configured{{end}}</div>{{end}}
     {{if .History}}
     {{$late := .LateAfter}}
     <div class="history">
