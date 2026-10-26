@@ -277,12 +277,15 @@ func TestRefreshAndAutoReload(t *testing.T) {
 	e := newEnv(t, "")
 	page := get(t, e.srv.URL)
 	// 2034 departed 06:45 and is running at 07:40.
-	if !strings.Contains(page, `http-equiv="refresh" content="300"`) || !strings.Contains(page, "Updated 07:37") {
+	if !strings.Contains(page, `http-equiv="refresh" content="300; url=./"`) || !strings.Contains(page, "Updated 07:37") {
 		t.Error("running train: page doesn't reload every 5 minutes or lacks the update time")
 	}
 	resp := post(t, e.srv.URL+"/refresh", nil)
-	if resp.StatusCode != http.StatusSeeOther {
-		t.Errorf("refresh: %s", resp.Status)
+	if resp.StatusCode != http.StatusSeeOther || !strings.HasPrefix(resp.Header.Get("Location"), "./?notice=") {
+		t.Errorf("refresh: %s, Location %q", resp.Status, resp.Header.Get("Location"))
+	}
+	if page := html.UnescapeString(get(t, e.srv.URL+"/?notice=refreshed+2+trains")); !strings.Contains(page, "Refresh: refreshed 2 trains.") {
+		t.Error("refresh notice not shown")
 	}
 	if err := e.st.AddReading(context.Background(), &store.Reading{TrainKey: "2034", RunDate: "2026-10-26",
 		FetchedAt: time.Date(2026, 10, 26, 7, 39, 0, 0, vt.Rome), State: "arrived"}); err != nil {

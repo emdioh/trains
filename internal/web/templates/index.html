@@ -1,5 +1,5 @@
 {{template "head"}}
-{{if .Active}}<meta http-equiv="refresh" content="{{.Reload}}">{{end}}
+{{if .Active}}<meta http-equiv="refresh" content="{{.Reload}}; url=./">{{end}}
 <title>Trains</title>
 </head>
 <body>
@@ -12,6 +12,7 @@
       <button class="button small">Refresh now</button>
     </form>
   </header>
+  {{with .Notice}}<p class="notice muted">Refresh: {{.}}.</p>{{end}}
 
   {{range .Trains}}
   <section class="card">

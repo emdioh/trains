@@ -10,6 +10,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ type Server struct {
 	// Version is shown at the bottom of the page.
 	Version string
 	// Refresh fetches fresh data for today's trains now.
-	Refresh func(ctx context.Context) error
+	Refresh func(ctx context.Context) (int, error)
 
 	pages *template.Template
 }
@@ -130,7 +131,8 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, http.StatusOK, "index.html", map[string]any{"Trains": trains, "Now": now.In(vt.Rome),
 		"Notify": len(s.Config().Notifiers) > 0, "Active": active, "Updated": updated,
-		"Reload": int(reloadEvery.Seconds()), "Version": s.Version})
+		"Reload": int(reloadEvery.Seconds()), "Version": s.Version,
+		"Notice": r.URL.Query().Get("notice")})
 }
 
 // reloadEvery is how often the page reloads while trains run, matching the
@@ -138,16 +140,25 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 const reloadEvery = 5 * time.Minute
 
 func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
+	notice := "nothing to refresh"
 	if s.Refresh != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
-		if err := s.Refresh(ctx); err != nil {
+		switch n, err := s.Refresh(ctx); {
+		case err != nil:
 			s.Log.Warn("refresh did not finish", "err", err)
+			notice = "refresh failed"
+		case n == 1:
+			notice = "refreshed 1 train"
+		case n > 1:
+			notice = fmt.Sprintf("refreshed %d trains", n)
+		default:
+			notice = "nothing to refresh: no train runs today, or all were just updated"
 		}
 	}
-	backToList(w)
+	w.Header().Set("Location", "./?notice="+url.QueryEscape(notice))
+	w.WriteHeader(http.StatusSeeOther)
 }
-
 func (s *Server) render(w http.ResponseWriter, status int, name string, data any) {
 	var buf strings.Builder
 	if err := s.pages.ExecuteTemplate(&buf, name, data); err != nil {

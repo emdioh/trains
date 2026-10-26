@@ -284,10 +284,26 @@ func TestForcedRefresh(t *testing.T) {
 	defer cancel()
 	h.now = at("06:40")
 	go h.tracker.Run(ctx)
-	if err := h.tracker.Refresh(ctx); err != nil {
-		t.Fatal(err)
+	if n, err := h.tracker.Refresh(ctx); err != nil || n != 1 {
+		t.Fatalf("Refresh = %d, %v; want 1 train fetched", n, err)
 	}
 	if h.src.calls < 3 {
 		t.Errorf("Refresh: %d calls, want a new one", h.src.calls)
+	}
+}
+
+func TestRefreshFetchesArrivedTrains(t *testing.T) {
+	h := newHarness(t, `  - {number: 2034}`, func() (*vt.Status, error) {
+		s, _ := running(0)()
+		s.Arrived = true
+		return s, nil
+	})
+	h.run("09:00", "09:30") // arrived on the first reading: no more polling
+	if h.src.calls != 1 {
+		t.Fatalf("after arrival: %d calls, want 1", h.src.calls)
+	}
+	h.now = at("21:00")
+	if n := h.tracker.tick(context.Background(), true); n != 1 || h.src.calls != 2 {
+		t.Errorf("refresh after arrival fetched %d (calls %d), want the train fetched again", n, h.src.calls)
 	}
 }
