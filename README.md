@@ -70,19 +70,35 @@ make dist           # dist/trains-linux-{amd64,arm64}
 
 ## Installing on a server
 
-Copy a binary and the `deploy/` directory to the server (an LXC container is
-fine), then run, as root:
+Each [release](https://github.com/emdioh/things/releases) has a tarball per
+architecture holding the binary, `deploy/` and the example config. On the
+server (an LXC container is fine), as root:
 
 ```sh
-deploy/install.sh trains-linux-amd64
+v=v0.1.0 arch=amd64
+wget https://github.com/emdioh/things/releases/download/trains-$v/trains-$v-linux-$arch.tar.gz
+tar -xzf trains-$v-linux-$arch.tar.gz
+deploy/install.sh trains-linux-$arch
 ```
 
 It installs `/usr/local/bin/trains`, creates a `trains` user and
 `/var/lib/trains` for the database, and writes `/etc/trains/trains.yaml` and
 `/etc/trains/env` (for the Telegram secrets) if they don't exist. It then
 installs and starts a systemd or OpenRC service, whichever the system uses.
-To update, run it again with the new binary: configuration and data are
+To update, do the same with a newer release: configuration and data are
 kept.
+
+## Releasing
+
+Push a tag named `trains-v<version>` on this branch:
+
+```sh
+git tag trains-v0.1.1 && git push origin trains-v0.1.1
+```
+
+The `trains release` workflow tests and builds the binaries and publishes
+them as a GitHub release. The `trains-` prefix keeps the tags apart from
+other projects in this repository.
 
 ## Caveats
 
