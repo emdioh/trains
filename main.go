@@ -108,7 +108,7 @@ func run(configPath string, log *slog.Logger) error {
 	srv := &http.Server{
 		Addr: cfg.Listen,
 		Handler: (&web.Server{Config: t.Config, Store: st, Source: source, Log: log, Now: time.Now,
-			Changed: t.Wake, Refresh: t.Refresh}).Handler(),
+			Changed: t.Wake, Refresh: t.Refresh, Version: version}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)

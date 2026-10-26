@@ -32,6 +32,8 @@ type Server struct {
 	Now    func() time.Time
 	// Changed is called after the train list is edited.
 	Changed func()
+	// Version is shown at the bottom of the page.
+	Version string
 	// Refresh fetches fresh data for today's trains now.
 	Refresh func(ctx context.Context) error
 
@@ -128,7 +130,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, http.StatusOK, "index.html", map[string]any{"Trains": trains, "Now": now.In(vt.Rome),
 		"Notify": len(s.Config().Notifiers) > 0, "Active": active, "Updated": updated,
-		"Reload": int(reloadEvery.Seconds())})
+		"Reload": int(reloadEvery.Seconds()), "Version": s.Version})
 }
 
 // reloadEvery is how often the page reloads while trains run, matching the

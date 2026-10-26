@@ -97,7 +97,7 @@ trains:
 	e := &env{st: st}
 	s := &Server{Config: func() *config.Config { return cfg }, Store: st, Source: fakeSource{},
 		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now },
-		Changed: func() { e.changed++ }}
+		Changed: func() { e.changed++ }, Version: "v9.9.9"}
 	e.srv = httptest.NewServer(s.Handler())
 	t.Cleanup(e.srv.Close)
 	return e
@@ -124,7 +124,7 @@ func TestPage(t *testing.T) {
 	for _, want := range []string{
 		"Morning commute · REG 2034", "+12 min", "Last seen Treviglio at 07:18",
 		"Milano Centrale 06:45 → Bergamo 07:50", "Updated 3 min ago", "Notifies at 07:20 if 5+ min late",
-		"Fri 23 Oct On time", "Wed 21 Oct Cancelled", "No data yet", "Not today",
+		"Fri 23 Oct On time", "Wed 21 Oct Cancelled", "No data yet", "Not today", "trains v9.9.9",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q", want)
