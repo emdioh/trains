@@ -9,7 +9,7 @@ Current projects:
 
 - `audiopub`: EPUB to multi-voice audiobook converter
 - `dashboard`: one-click git + docker compose redeploy dashboard
-- `trains`: just started
+- `trains`: Italian train delay tracker with notifications and a status page (Go)
 
 ## Working here
 
