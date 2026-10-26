@@ -9,6 +9,8 @@ command_user="trains:trains"
 command_background=true
 directory="/var/lib/trains"
 pidfile="/run/${RC_SVCNAME}.pid"
+# Ask nicely, then make sure: a stop must never leave the old process running.
+retry="TERM/10/KILL/5"
 output_log="/var/log/trains.log"
 error_log="/var/log/trains.log"
 

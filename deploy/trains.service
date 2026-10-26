@@ -10,6 +10,7 @@ WorkingDirectory=/var/lib/trains
 User=trains
 Restart=on-failure
 RestartSec=10
+TimeoutStopSec=10
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

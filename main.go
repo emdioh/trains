@@ -26,6 +26,10 @@ import (
 
 var version = "dev"
 
+// stopTimeout bounds a graceful shutdown; the OpenRC script waits a little
+// longer before killing the process.
+const stopTimeout = 8 * time.Second
+
 const usage = `Usage: trains <command> [flags]
 
 Commands:
@@ -118,7 +122,13 @@ func run(configPath string, log *slog.Logger) error {
 	case err = <-errc:
 		stop()
 	case <-ctx.Done():
+		log.Info("stopping")
 	}
+	// Whatever happens below, don't outlive the init system's patience.
+	time.AfterFunc(stopTimeout, func() {
+		log.Error("shutdown is taking too long; exiting anyway", "after", stopTimeout)
+		os.Exit(1)
+	})
 	<-done
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

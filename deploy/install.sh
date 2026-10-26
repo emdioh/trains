@@ -38,7 +38,16 @@ if command -v systemctl >/dev/null; then
 elif command -v rc-service >/dev/null; then
 	install -m 0755 "$here/trains.openrc" /etc/init.d/trains
 	rc-update add trains default
-	rc-service trains restart
+	if ! rc-service trains restart; then
+		# A process OpenRC couldn't stop (e.g. left over from an older
+		# install): clear the service state, end it, and start afresh.
+		echo "restart failed; stopping leftover trains processes"
+		rc-service trains zap
+		pkill -x -u trains trains || true
+		sleep 2
+		pkill -9 -x -u trains trains || true
+		rc-service trains start
+	fi
 else
 	echo "No systemd or OpenRC found: start '/usr/local/bin/trains run -config /etc/trains/trains.yaml' yourself."
 fi
