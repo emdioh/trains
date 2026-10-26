@@ -1,9 +1,12 @@
 name: trains release
 
-# Tags are prefixed with the project name because several projects share
-# this repository: trains-v0.1.0 releases version v0.1.0 of trains.
+# A release is made when VERSION changes on the trains branch, or when a
+# trains-v* tag is pushed. Tags carry the project name because several
+# projects share this repository: trains-v0.1.0 is version v0.1.0.
 on:
   push:
+    branches: [trains]
+    paths: [VERSION]
     tags: ["trains-v*"]
 
 permissions:
@@ -14,15 +17,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-      - run: make test
-      - run: make package VERSION="${GITHUB_REF_NAME#trains-}"
-      - name: Publish
+      - name: Version
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "trains ${GITHUB_REF_NAME#trains-}" \
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=${GITHUB_REF_NAME#trains-}
+          else
+            version=$(tr -d '[:space:]' < VERSION)
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "trains-$version" >/dev/null 2>&1; then
+            echo "Release trains-$version already exists; nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.version.outputs.exists != 'true'
+        with:
+          go-version-file: go.mod
+      - if: steps.version.outputs.exists != 'true'
+        run: make test
+      - if: steps.version.outputs.exists != 'true'
+        run: make package VERSION=${{ steps.version.outputs.version }}
+      - name: Publish
+        if: steps.version.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "trains-$VERSION" dist/* --target "$GITHUB_SHA" \
+            --title "trains $VERSION" \
             --notes "Static Linux binaries of trains. Each tarball also holds deploy/ and config.example.yaml: unpack it on the server and run \`deploy/install.sh trains-linux-<arch>\` as root to install or update."

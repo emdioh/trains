@@ -90,15 +90,11 @@ kept.
 
 ## Releasing
 
-Push a tag named `trains-v<version>` on this branch:
-
-```sh
-git tag trains-v0.1.1 && git push origin trains-v0.1.1
-```
-
-The `trains release` workflow tests and builds the binaries and publishes
-them as a GitHub release. The `trains-` prefix keeps the tags apart from
-other projects in this repository.
+Bump `VERSION` and push it to the `trains` branch. The `trains release`
+workflow then tests and builds the binaries, and publishes them as the
+GitHub release `trains-<version>`, creating the tag. Pushing a
+`trains-v<version>` tag yourself does the same. The `trains-` prefix keeps
+the tags apart from other projects in this repository.
 
 ## Caveats
 
