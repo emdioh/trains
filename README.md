@@ -88,6 +88,10 @@ installs and starts a systemd or OpenRC service, whichever the system uses.
 To update, do the same with a newer release: configuration and data are
 kept.
 
+From a git clone of this branch, `deploy/install-release.sh` does all of
+that in one step for the version in `VERSION`, checking the download
+against `SHA256SUMS`. The dashboard project's deploy step uses it.
+
 ## Releasing
 
 Bump `VERSION` and push it to the `trains` branch. The `trains release`
