@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -208,19 +209,14 @@ func (t *Tracker) fetch(ctx context.Context, train config.Train, rs *runState, n
 	rs.notFound = false
 	if rs.run == nil {
 		runs, err := t.Source.FindRuns(ctx, train.Number)
-		if err == nil {
-			var ok bool
-			rs.run, ok = pickRun(runs, train.Origin, now)
-			if !ok {
-				err = vt.ErrNotFound
-			} else if train.Origin == "" && len(runs) > 1 {
-				t.Log.Warn("train number is ambiguous; set origin to choose", "train", train.Number,
-					"using", rs.run.Origin, "runs", len(runs))
-			}
-		}
 		if err != nil {
 			rs.notFound = errors.Is(err, vt.ErrNotFound)
 			return fmt.Errorf("finding today's run: %w", err)
+		}
+		if rs.run, err = PickRun(runs, train.Origin, now); err != nil {
+			// Retrying soon won't help: a config change starts a new run state.
+			rs.notFound = true
+			return err
 		}
 	}
 	status, raw, err := t.Source.Status(ctx, *rs.run)
@@ -236,15 +232,54 @@ func (t *Tracker) fetch(ctx context.Context, train config.Train, rs *runState, n
 	return nil
 }
 
-// pickRun chooses today's run, from the configured origin if one is set.
-func pickRun(runs []vt.Run, origin string, now time.Time) (*vt.Run, bool) {
+// PickRun chooses today's run of a train. origin, when set, is a station
+// code (S01700) or part of a station name (Milano Centrale) and must match
+// exactly one run. Without it the number must be unambiguous: guessing
+// would silently track the wrong train.
+func PickRun(runs []vt.Run, origin string, now time.Time) (*vt.Run, error) {
 	today := now.Format(store.DateLayout)
+	var todays, matches []vt.Run
 	for _, r := range runs {
-		if (origin == "" || r.Origin == origin) && r.Date.Format(store.DateLayout) == today {
-			return &r, true
+		if r.Date.Format(store.DateLayout) != today {
+			continue
+		}
+		todays = append(todays, r)
+		if origin == "" || matchesOrigin(r, origin) {
+			matches = append(matches, r)
 		}
 	}
-	return nil, false
+	switch {
+	case len(matches) == 1:
+		return &matches[0], nil
+	case len(todays) == 0:
+		return nil, vt.ErrNotFound
+	case len(matches) == 0:
+		return nil, fmt.Errorf("no run from %q today; it runs from %s", origin, describeRuns(todays))
+	case origin == "":
+		return nil, fmt.Errorf("several trains have this number today, from %s: set origin to choose one", describeRuns(matches))
+	}
+	return nil, fmt.Errorf("origin %q matches several runs, from %s: be more specific", origin, describeRuns(matches))
+}
+
+func matchesOrigin(r vt.Run, origin string) bool {
+	if strings.EqualFold(r.Origin, origin) {
+		return true
+	}
+	want := normalizeStation(origin)
+	return want != "" && strings.Contains(normalizeStation(r.OriginName), want)
+}
+
+// normalizeStation makes "Milano C.le" and "MILANO  C.LE" compare equal.
+func normalizeStation(s string) string {
+	return strings.Join(strings.Fields(strings.ToUpper(strings.ReplaceAll(s, ".", ". "))), " ")
+}
+
+func describeRuns(runs []vt.Run) string {
+	var parts []string
+	for _, r := range runs {
+		parts = append(parts, fmt.Sprintf("%s (%s)", Title(r.OriginName), r.Origin))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func toReading(key string, run vt.Run, s *vt.Status, raw []byte, now time.Time) *store.Reading {

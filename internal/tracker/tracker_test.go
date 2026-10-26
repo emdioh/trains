@@ -26,15 +26,21 @@ func at(hhmm string) time.Time {
 
 type fakeSource struct {
 	status func() (*vt.Status, error)
+	runs   []vt.Run // what FindRuns returns; default one run from S01700
 	calls  int
+	asked  []string // origins of the runs whose status was asked
 }
 
 func (f *fakeSource) FindRuns(ctx context.Context, number int) ([]vt.Run, error) {
-	return []vt.Run{{Number: number, Origin: "S01700", Date: at("00:00")}}, nil
+	if f.runs != nil {
+		return f.runs, nil
+	}
+	return []vt.Run{{Number: number, Origin: "S01700", OriginName: "MILANO CENTRALE", Date: at("00:00")}}, nil
 }
 
 func (f *fakeSource) Status(ctx context.Context, run vt.Run) (*vt.Status, []byte, error) {
 	f.calls++
+	f.asked = append(f.asked, run.Origin)
 	s, err := f.status()
 	return s, []byte("{}"), err
 }
@@ -198,5 +204,62 @@ func TestSkipsOtherDays(t *testing.T) {
 	h.run("06:00", "09:00")
 	if h.src.calls != 0 || len(h.messages()) != 0 {
 		t.Errorf("Monday: %d calls, %d messages; want none", h.src.calls, len(h.messages()))
+	}
+}
+
+var twin652 = []vt.Run{
+	{Number: 652, Origin: "S01700", OriginName: "MILANO CENTRALE", Date: at("00:00")},
+	{Number: 652, Origin: "S09218", OriginName: "NAPOLI CENTRALE", Date: at("00:00")},
+	{Number: 652, Origin: "S08409", OriginName: "ROMA TERMINI", Date: at("00:00").AddDate(0, 0, -1)},
+}
+
+func TestPickRun(t *testing.T) {
+	for _, tc := range []struct {
+		origin, want, err string
+	}{
+		{"S09218", "S09218", ""},
+		{"s09218", "S09218", ""},
+		{"Napoli Centrale", "S09218", ""},
+		{"napoli", "S09218", ""},
+		{"", "", "several trains have this number today, from Milano Centrale (S01700), Napoli Centrale (S09218)"},
+		{"Centrale", "", "matches several runs"},
+		{"Roma", "", `no run from "Roma" today`}, // Roma's run is yesterday's
+	} {
+		run, err := PickRun(twin652, tc.origin, at("09:00"))
+		switch {
+		case tc.err != "" && (err == nil || !strings.Contains(err.Error(), tc.err)):
+			t.Errorf("origin %q: err = %v, want %q", tc.origin, err, tc.err)
+		case tc.err == "" && (err != nil || run.Origin != tc.want):
+			t.Errorf("origin %q: got %v, %v; want %s", tc.origin, run, err, tc.want)
+		}
+	}
+	if _, err := PickRun(twin652[2:], "", at("09:00")); !errors.Is(err, vt.ErrNotFound) {
+		t.Errorf("no run today: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestAmbiguousNumberIsNotGuessed(t *testing.T) {
+	h := newHarness(t, `  - {number: 652, notify_at: "07:20"}`, running(12))
+	h.src.runs = twin652
+	h.run("07:00", "08:00")
+	if h.src.calls != 0 {
+		t.Errorf("status fetched %d times for an ambiguous number", h.src.calls)
+	}
+	msg, _, _ := h.store.LastFetchError(context.Background(), "652", "2026-10-26")
+	if !strings.Contains(msg, "set origin") {
+		t.Errorf("fetch error = %q, want it to ask for origin", msg)
+	}
+	// The notification time passes without a status: say so rather than stay silent.
+	if msgs := h.messages(); len(msgs) != 1 || !strings.Contains(msgs[0], "set origin") {
+		t.Errorf("messages = %q, want one explaining the ambiguity", msgs)
+	}
+}
+
+func TestOriginByName(t *testing.T) {
+	h := newHarness(t, `  - {number: 652, origin: Napoli Centrale}`, running(0))
+	h.src.runs = twin652
+	h.run("07:00", "07:10")
+	if len(h.src.asked) == 0 || h.src.asked[0] != "S09218" {
+		t.Errorf("asked status of %v, want the Napoli run", h.src.asked)
 	}
 }

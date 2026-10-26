@@ -41,6 +41,9 @@ type Train struct {
 	RunsToday bool             `json:"runs_today"`
 	Today     *store.Reading   `json:"today"`
 	History   []*store.Reading `json:"history"`
+	// Problem is today's latest fetch error when there is no reading yet,
+	// e.g. an ambiguous train number.
+	Problem string `json:"problem,omitempty"`
 }
 
 func (s *Server) Handler() http.Handler {
@@ -75,6 +78,11 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 			t.Today, history = history[0], history[1:]
 		}
 		t.History = history[:min(len(history), historyRuns)]
+		if t.Today == nil && t.RunsToday {
+			if t.Problem, _, err = s.Store.LastFetchError(ctx, c.Key(), today); err != nil {
+				return nil, err
+			}
+		}
 		out = append(out, t)
 	}
 	return out, nil

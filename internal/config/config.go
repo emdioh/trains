@@ -40,8 +40,10 @@ type NotifierConfig struct {
 }
 
 type Train struct {
-	Number int    `yaml:"number"`
-	Origin string `yaml:"origin"` // station code; only needed when the number is ambiguous
+	Number int `yaml:"number"`
+	// Origin picks the run when several trains share the number: a station
+	// code (S01700) or part of the station's name (Milano Centrale).
+	Origin string `yaml:"origin"`
 	Label  string `yaml:"label"`
 	Days   Days   `yaml:"days"`
 	// NotifyAt is the time of day ("07:20") at which a notification is sent

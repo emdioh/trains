@@ -41,8 +41,11 @@ trains:
     notify_at: "07:20"
 ```
 
-Some numbers run from more than one origin. `trains check NUMBER` lists the
-runs and their origin codes; set `origin` to the one you want.
+Train numbers aren't unique: different operators can use the same number on
+the same day. Such a train isn't tracked until you choose one with
+`origin`, either the departure station's name (or part of it, like
+`Milano Centrale`) or its code (`S01700`). Until then the status page lists
+the candidates; `trains check NUMBER` shows each one's route.
 
 Notifications go to Telegram or [ntfy](https://ntfy.sh). They are optional:
 a notifier whose settings are empty (say `${TELEGRAM_TOKEN}` isn't set) is

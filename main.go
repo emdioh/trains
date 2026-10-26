@@ -155,6 +155,10 @@ func check(configPath string, args []string) error {
 		}
 		fmt.Println()
 	}
+	if len(runs) > 1 {
+		fmt.Printf("\n%d trains have number %d. In the config, choose one with its origin, e.g.:\n", len(runs), number)
+		fmt.Printf("  - number: %d\n    origin: %s   # %s\n", number, runs[0].Origin, tracker.Title(runs[0].OriginName))
+	}
 	return nil
 }
 

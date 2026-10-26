@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"log/slog"
@@ -50,6 +51,9 @@ trains:
 		}
 	}
 	add("2034", "2026-10-26", "running", 12, false)
+	if err := st.AddFetchError(ctx, "2077", "2026-10-26", now, errors.New("several trains have this number today, from A (S1), B (S2): set origin to choose one")); err != nil {
+		t.Fatal(err)
+	}
 	add("2034", "2026-10-23", "arrived", 0, false)
 	add("2034", "2026-10-22", "arrived", 7, false)
 	add("2034", "2026-10-21", "cancelled", 0, false)
@@ -96,6 +100,14 @@ func TestPageWithoutNotifiers(t *testing.T) {
 	page := html.UnescapeString(get(t, srv.URL))
 	if !strings.Contains(page, "Would notify at 07:20, but no notifier is configured") {
 		t.Error("page doesn't say notifications are off")
+	}
+}
+
+func TestPageShowsProblem(t *testing.T) {
+	srv := newServer(t, "")
+	page := html.UnescapeString(get(t, srv.URL))
+	if !strings.Contains(page, "several trains have this number") {
+		t.Error("page doesn't show why train 2077 isn't tracked")
 	}
 }
 

@@ -181,6 +181,19 @@ func (s *Store) AddFetchError(ctx context.Context, trainKey, runDate string, at 
 	return err
 }
 
+// LastFetchError returns the newest fetch error of a run, or "" if there
+// is none.
+func (s *Store) LastFetchError(ctx context.Context, trainKey, runDate string) (string, time.Time, error) {
+	var msg string
+	var at int64
+	err := s.db.QueryRowContext(ctx, `SELECT error, at FROM fetch_errors
+		WHERE train_key = ? AND run_date = ? ORDER BY id DESC LIMIT 1`, trainKey, runDate).Scan(&msg, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", time.Time{}, nil
+	}
+	return msg, fromUnix(at), err
+}
+
 func unix(t time.Time) int64 {
 	if t.IsZero() {
 		return 0

@@ -27,6 +27,7 @@ trains:
     days: weekdays
     notify_at: "17:45"
     late_after: 10
-  # - number: 9544
-  #   origin: S01700       # only when the number runs from several origins;
-  #                        # `trains check 9544` lists them
+  # - number: 652
+  #   origin: Milano Centrale  # needed when several trains share the number:
+  #                            # station name (or part of it) or code (S01700).
+  #                            # `trains check 652` lists them
