@@ -1,4 +1,5 @@
-// Package web serves the status page and its JSON twin.
+// Package web serves the status page, its JSON twin and the pages that
+// edit the train list.
 package web
 
 import (
@@ -26,10 +27,15 @@ const historyRuns = 14
 type Server struct {
 	Config func() *config.Config
 	Store  *store.Store
+	Source tracker.Source // for looking up train numbers while editing
 	Log    *slog.Logger
 	Now    func() time.Time
+	// Changed is called after the train list is edited.
+	Changed func()
+	// Refresh fetches fresh data for today's trains now.
+	Refresh func(ctx context.Context) error
 
-	page *template.Template
+	pages *template.Template
 }
 
 type Train struct {
@@ -47,7 +53,7 @@ type Train struct {
 }
 
 func (s *Server) Handler() http.Handler {
-	s.page = template.Must(template.New("index.html").Funcs(template.FuncMap{
+	s.pages = template.Must(template.New("").Funcs(template.FuncMap{
 		"hhmm":     hhmm,
 		"ago":      func(t time.Time) string { return ago(s.Now().Sub(t)) },
 		"title":    tracker.Title,
@@ -55,19 +61,32 @@ func (s *Server) Handler() http.Handler {
 		"delay":    delayText,
 		"level":    level,
 		"day":      day,
-	}).ParseFS(templates, "templates/index.html"))
+	}).ParseFS(templates, "templates/*.html"))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.HandleFunc("GET /api/trains", s.api)
-	return mux
+	mux.HandleFunc("GET /edit", s.edit)
+	mux.HandleFunc("POST /save", s.save)
+	mux.HandleFunc("POST /delete", s.delete)
+	mux.HandleFunc("POST /refresh", s.refresh)
+	// Links and forms are relative, so the pages also work under a path
+	// prefix (behind the dashboard's proxy). Cross-site form posts are
+	// refused.
+	return http.NewCrossOriginProtection().Handler(mux)
 }
 
 func (s *Server) trains(ctx context.Context) ([]Train, error) {
 	now := s.Now().In(vt.Rome)
 	today := now.Format(store.DateLayout)
+	cfg := s.Config()
+	list, err := s.Store.Trains(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var out []Train
-	for _, c := range s.Config().Trains {
+	for _, c := range list {
+		c = cfg.WithDefaults(c)
 		t := Train{Key: c.Key(), Label: c.Label, Number: c.Number, NotifyAt: c.NotifyAt,
 			LateAfter: c.LateAfter, RunsToday: c.Days.Has(now.Weekday())}
 		history, err := s.Store.History(ctx, c.Key(), historyRuns+1)
@@ -94,14 +113,47 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	// The page reloads itself only while a train is running; the rest of
+	// the day nothing changes until the next departure.
+	now := s.Now()
+	var updated time.Time
+	active := false
+	for _, t := range trains {
+		if t.Today != nil {
+			active = active || tracker.Active(t.Today, now)
+			if t.Today.FetchedAt.After(updated) {
+				updated = t.Today.FetchedAt
+			}
+		}
+	}
+	s.render(w, http.StatusOK, "index.html", map[string]any{"Trains": trains, "Now": now.In(vt.Rome),
+		"Notify": len(s.Config().Notifiers) > 0, "Active": active, "Updated": updated,
+		"Reload": int(reloadEvery.Seconds())})
+}
+
+// reloadEvery is how often the page reloads while trains run, matching the
+// tracker's default polling.
+const reloadEvery = 5 * time.Minute
+
+func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
+	if s.Refresh != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		if err := s.Refresh(ctx); err != nil {
+			s.Log.Warn("refresh did not finish", "err", err)
+		}
+	}
+	backToList(w)
+}
+
+func (s *Server) render(w http.ResponseWriter, status int, name string, data any) {
 	var buf strings.Builder
-	data := map[string]any{"Trains": trains, "Now": s.Now().In(vt.Rome),
-		"Notify": len(s.Config().Notifiers) > 0}
-	if err := s.page.Execute(&buf, data); err != nil {
+	if err := s.pages.ExecuteTemplate(&buf, name, data); err != nil {
 		s.fail(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	fmt.Fprint(w, buf.String())
 }
 

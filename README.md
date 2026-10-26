@@ -11,47 +11,63 @@ Trenord and the rest.
 
 ## How it works
 
-- Every minute, `trains run` checks which configured trains need polling. A
-  train is polled every `poll_interval` (default 5 min), starting 30 min
-  before its scheduled departure and stopping once it arrives or is
-  cancelled. Outside that window it isn't polled at all.
+- Every minute, `trains run` checks which trains need polling. A train is
+  polled every `poll_interval` (default 5 min), from 30 min before its
+  scheduled departure until it arrives or is cancelled. Outside that window
+  nothing is fetched.
 - Every reading is stored in SQLite, including the raw API response. So are
   fetch errors and notification checks.
-- At a train's `notify_at` time, it fetches a fresh reading. A message is
+- At a train's notification time, it fetches a fresh reading. A message is
   sent if the train is at least `late_after` minutes late, cancelled or
   partly cancelled. On time means no message. If ViaggiaTreno can't be
-  reached for 30 minutes after `notify_at`, a "status unknown" message is
+  reached for 30 minutes after that time, a "status unknown" message is
   sent instead. While the service is running, silence means on time.
 - The status page (`listen`, default `:8080`) shows today's delay, last
-  position and schedule for each train, plus its last 14 runs. It
-  refreshes every minute. The same data is at `/api/trains` as JSON.
-- The configuration is re-read when it changes, so trains and notifiers can
-  be edited while the service runs. `listen` and `database` need a restart.
+  position and schedule for each train, plus its last 14 runs, and when the
+  data was last updated. It reloads itself every 5 minutes while a train is
+  running, and not at all otherwise. **Refresh now** fetches every train
+  running today straight away. The same data
+  is at `/api/trains` as JSON.
+
+## Trains
+
+Trains are managed on the status page: **Add a train**, or **Edit** next to
+one. They are kept in the database, and changes apply immediately.
+
+- **Number:** the train number, e.g. 2034.
+- **Departure station:** train numbers aren't unique, and different
+  operators can use the same number on the same day. **Look up today's
+  trains** lists today's trains with that number to choose from. You can
+  also type the departure station's name (or part of it, like
+  `Milano Centrale`) or its code (`S01700`). A number shared by several
+  trains isn't tracked until one is chosen; the status page says so.
+- **Days:** the weekdays to track it on.
+- **Notify at:** the time to send a message if the train is late or
+  cancelled. Leave it empty for no notification.
+- **Late from:** minutes of delay that count as late. Defaults to
+  `late_after` in the config file.
+
+On the first start, any `trains:` listed in the config file are imported.
+After that the list in the file is ignored.
+
+The pages have no login. Anyone who can open them can change the list, so
+put them behind the dashboard's proxy (and its Cloudflare Access login) or
+keep `listen` on a private address. Form posts from other sites are
+refused.
 
 ## Configuration
 
-See [`config.example.yaml`](config.example.yaml). A train needs only its
-number:
-
-```yaml
-trains:
-  - number: 2034
-    label: Morning commute
-    days: mon-fri
-    notify_at: "07:20"
-```
-
-Train numbers aren't unique: different operators can use the same number on
-the same day. Such a train isn't tracked until you choose one with
-`origin`, either the departure station's name (or part of it, like
-`Milano Centrale`) or its code (`S01700`). Until then the status page lists
-the candidates; `trains check NUMBER` shows each one's route.
+See [`config.example.yaml`](config.example.yaml) for the settings: the
+status page address, database, polling interval, default `late_after` and
+the notifiers. The file is re-read when it changes, so notifier changes
+apply without a restart; `listen` and `database` need one.
 
 Notifications go to Telegram or [ntfy](https://ntfy.sh). They are optional:
 a notifier whose settings are empty (say `${TELEGRAM_TOKEN}` isn't set) is
-disabled with a warning in the log, and everything else keeps working. For Telegram,
-create a bot with @BotFather and get your chat id from @userinfobot. Other
-channels implement the `Notifier` interface in `internal/notify`.
+disabled with a warning in the log, and everything else keeps working. For
+Telegram, create a bot with @BotFather and get your chat id from
+@userinfobot. Other channels implement the `Notifier` interface in
+`internal/notify`.
 
 ## Commands
 

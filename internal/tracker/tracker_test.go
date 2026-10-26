@@ -90,6 +90,9 @@ func newHarness(t *testing.T, trainYAML string, status func() (*vt.Status, error
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { h.store.Close() })
+	if _, err := h.store.ImportTrains(context.Background(), cfg.Trains); err != nil {
+		t.Fatal(err)
+	}
 	h.restart()
 	return h
 }
@@ -261,5 +264,30 @@ func TestOriginByName(t *testing.T) {
 	h.run("07:00", "07:10")
 	if len(h.src.asked) == 0 || h.src.asked[0] != "S09218" {
 		t.Errorf("asked status of %v, want the Napoli run", h.src.asked)
+	}
+}
+
+func TestForcedRefresh(t *testing.T) {
+	h := newHarness(t, `  - {number: 2034}`, running(0))
+	h.run("06:00", "06:00") // first reading: departs 07:35, so idle until 07:05
+	h.now = at("06:30")
+	h.tracker.tick(context.Background(), true)
+	if h.src.calls != 2 {
+		t.Errorf("forced refresh outside the window: %d calls, want 2", h.src.calls)
+	}
+	h.tracker.tick(context.Background(), true) // same instant: skipped
+	if h.src.calls != 2 {
+		t.Errorf("second forced refresh within a minute: %d calls, want 2", h.src.calls)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.now = at("06:40")
+	go h.tracker.Run(ctx)
+	if err := h.tracker.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if h.src.calls < 3 {
+		t.Errorf("Refresh: %d calls, want a new one", h.src.calls)
 	}
 }

@@ -29,6 +29,8 @@ const (
 	// How long after notify_at a reading may still arrive. Past it, a
 	// "couldn't check" notification is sent instead.
 	notifyGrace = 30 * time.Minute
+	// A forced refresh skips trains fetched more recently than this.
+	refreshMinGap = 20 * time.Second
 )
 
 type Source interface {
@@ -47,6 +49,8 @@ type Tracker struct {
 	cfg     *config.Config
 	cfgTime time.Time
 	runs    map[string]*runState
+	wake    chan struct{}
+	refresh chan chan struct{}
 }
 
 // runState is what the tracker knows about today's run of one train.
@@ -63,7 +67,7 @@ type runState struct {
 
 func New(configPath string, cfg *config.Config, source Source, st *store.Store, log *slog.Logger) *Tracker {
 	t := &Tracker{ConfigPath: configPath, Source: source, Store: st, Log: log, Now: time.Now,
-		cfg: cfg, runs: map[string]*runState{}}
+		cfg: cfg, runs: map[string]*runState{}, wake: make(chan struct{}, 1), refresh: make(chan chan struct{})}
 	if fi, err := os.Stat(configPath); err == nil {
 		t.cfgTime = fi.ModTime()
 	}
@@ -77,30 +81,70 @@ func (t *Tracker) Config() *config.Config {
 	return t.cfg
 }
 
-// Run ticks every minute until ctx is done.
+// Run ticks every minute, and when woken or asked to refresh, until ctx
+// is done.
 func (t *Tracker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
+	t.Tick(ctx)
 	for {
-		t.Tick(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			t.Tick(ctx)
+		case <-t.wake:
+			t.Tick(ctx)
+		case done := <-t.refresh:
+			t.tick(ctx, true)
+			close(done)
 		}
 	}
 }
 
-func (t *Tracker) Tick(ctx context.Context) {
+// Refresh fetches every train running today now, outside the polling
+// schedule, and returns once done. Trains fetched in the last few seconds
+// are skipped.
+func (t *Tracker) Refresh(ctx context.Context) error {
+	done := make(chan struct{})
+	select {
+	case t.refresh <- done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Wake makes the tracker tick now, e.g. after the train list changed.
+func (t *Tracker) Wake() {
+	select {
+	case t.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (t *Tracker) Tick(ctx context.Context) { t.tick(ctx, false) }
+
+func (t *Tracker) tick(ctx context.Context, force bool) {
 	t.reload()
 	cfg := t.Config()
+	trains, err := t.Store.Trains(ctx)
+	if err != nil {
+		t.Log.Error("reading the train list", "err", err)
+		return
+	}
 	notifiers := notify.New(cfg.Notifiers)
 	now := t.Now().In(vt.Rome)
-	for _, train := range cfg.Trains {
+	for _, train := range trains {
 		if ctx.Err() != nil {
 			return
 		}
-		t.tickTrain(ctx, cfg, train, notifiers, now)
+		t.tickTrain(ctx, cfg, cfg.WithDefaults(train), notifiers, now, force)
 	}
 }
 
@@ -123,13 +167,13 @@ func (t *Tracker) reload() {
 	t.mu.Lock()
 	t.cfg = cfg
 	t.mu.Unlock()
-	t.Log.Info("config reloaded", "trains", len(cfg.Trains), "notifiers", len(cfg.Notifiers))
+	t.Log.Info("config reloaded", "notifiers", len(cfg.Notifiers))
 	for _, w := range cfg.Warnings {
 		t.Log.Warn(w)
 	}
 }
 
-func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train config.Train, notifiers []notify.Notifier, now time.Time) {
+func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train config.Train, notifiers []notify.Notifier, now time.Time, force bool) {
 	if !train.Days.Has(now.Weekday()) {
 		return
 	}
@@ -154,7 +198,7 @@ func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train confi
 	// While the notification waits for a reading, retry every minute.
 	needReading := rs.watching && !rs.checked && (rs.last == nil || rs.last.FetchedAt.Before(notifyAt))
 
-	if needReading || t.due(rs, time.Duration(cfg.PollInterval), now) {
+	if needReading || t.due(rs, time.Duration(cfg.PollInterval), now, force) {
 		if err := t.fetch(ctx, train, rs, now); err != nil {
 			rs.lastErr = err
 			t.Log.Warn("fetching status", "train", key, "err", err)
@@ -179,26 +223,41 @@ func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train confi
 	}
 }
 
-// due reports whether a train should be polled now: from shortly before
-// its departure until it arrives or is cancelled.
-func (t *Tracker) due(rs *runState, interval time.Duration, now time.Time) bool {
+// due reports whether a train should be polled now: while it is Active,
+// or on a forced refresh, unless it is over.
+func (t *Tracker) due(rs *runState, interval time.Duration, now time.Time, force bool) bool {
+	if force {
+		return now.Sub(rs.lastAttempt) >= refreshMinGap && (rs.last == nil || !Finished(rs.last))
+	}
 	if rs.notFound {
 		interval = max(interval, notFoundRetry)
 	}
 	if now.Sub(rs.lastAttempt) < interval {
 		return false
 	}
-	if rs.last == nil {
-		return true // the schedule isn't known yet
-	}
-	switch vt.State(rs.last.State) {
+	return rs.last == nil || Active(rs.last, now) // without a reading the schedule isn't known yet
+}
+
+// Finished reports whether a run is over: arrived or cancelled.
+func Finished(r *store.Reading) bool {
+	switch vt.State(r.State) {
 	case vt.Arrived, vt.Cancelled:
+		return true
+	}
+	return false
+}
+
+// Active reports whether a run is worth following at now: from shortly
+// before its scheduled departure until it arrives, is cancelled, or is
+// long overdue.
+func Active(r *store.Reading, now time.Time) bool {
+	if Finished(r) {
 		return false
 	}
-	if dep := rs.last.ScheduledDeparture; !dep.IsZero() && now.Before(dep.Add(-leadTime)) {
+	if dep := r.ScheduledDeparture; !dep.IsZero() && now.Before(dep.Add(-leadTime)) {
 		return false
 	}
-	if arr := rs.last.ScheduledArrival; !arr.IsZero() && now.After(arr.Add(tailTime)) {
+	if arr := r.ScheduledArrival; !arr.IsZero() && now.After(arr.Add(tailTime)) {
 		return false
 	}
 	return true

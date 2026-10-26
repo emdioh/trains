@@ -67,6 +67,30 @@ func (t Train) Name() string {
 	return strconv.Itoa(t.Number)
 }
 
+// Validate checks a train's own fields.
+func (t Train) Validate() error {
+	if t.Number <= 0 {
+		return errors.New("the train number is required")
+	}
+	if t.NotifyAt != "" {
+		if _, err := time.Parse("15:04", t.NotifyAt); err != nil {
+			return fmt.Errorf("notification time %q is not HH:MM", t.NotifyAt)
+		}
+	}
+	if t.LateAfter < 0 {
+		return errors.New("late_after must be at least 1")
+	}
+	return nil
+}
+
+// WithDefaults fills in what a train leaves to the global settings.
+func (c *Config) WithDefaults(t Train) Train {
+	if t.LateAfter == 0 {
+		t.LateAfter = c.LateAfter
+	}
+	return t
+}
+
 // NotifyTime returns the notification time on the given day, and false
 // when the train has none.
 func (t Train) NotifyTime(day time.Time) (time.Time, bool) {
@@ -114,25 +138,14 @@ func (c *Config) validate() error {
 		return errors.New("late_after must be at least 1")
 	}
 	seen := map[string]bool{}
-	for i := range c.Trains {
-		t := &c.Trains[i]
-		if t.Number <= 0 {
-			return fmt.Errorf("trains[%d]: number is required", i)
+	for i, t := range c.Trains {
+		if err := t.Validate(); err != nil {
+			return fmt.Errorf("trains[%d]: %w", i, err)
 		}
 		if seen[t.Key()] {
 			return fmt.Errorf("train %s is listed twice", t.Key())
 		}
 		seen[t.Key()] = true
-		if t.NotifyAt != "" {
-			if _, err := time.Parse("15:04", t.NotifyAt); err != nil {
-				return fmt.Errorf("train %s: notify_at %q is not HH:MM", t.Key(), t.NotifyAt)
-			}
-		}
-		if t.LateAfter == 0 {
-			t.LateAfter = c.LateAfter
-		} else if t.LateAfter < 0 {
-			return fmt.Errorf("train %s: late_after must be at least 1", t.Key())
-		}
 	}
 	// A notifier missing its settings (e.g. ${TELEGRAM_TOKEN} not set yet) is
 	// left out rather than stopping the service: tracking and the status
@@ -193,6 +206,16 @@ func (d *Days) UnmarshalYAML(n *yaml.Node) error {
 	} else {
 		items = strings.Split(n.Value, ",")
 	}
+	days, err := ParseDays(items)
+	if err != nil {
+		return err
+	}
+	*d = days
+	return nil
+}
+
+// ParseDays reads day names and ranges, as in the YAML file.
+func ParseDays(items []string) (Days, error) {
 	days := Days{}
 	for _, item := range items {
 		item = strings.ToLower(strings.TrimSpace(item))
@@ -211,7 +234,7 @@ func (d *Days) UnmarshalYAML(n *yaml.Node) error {
 			end, ok2 = start, ok1
 		}
 		if !ok1 || !ok2 {
-			return fmt.Errorf("unknown day %q", item)
+			return nil, fmt.Errorf("unknown day %q", item)
 		}
 		for wd := start; ; wd = (wd + 1) % 7 {
 			days[wd] = true
@@ -220,8 +243,27 @@ func (d *Days) UnmarshalYAML(n *yaml.Node) error {
 			}
 		}
 	}
-	*d = days
-	return nil
+	if len(days) == 7 {
+		days = Days{}
+	}
+	return days, nil
+}
+
+// DayKeys are the day names in week order, Monday first.
+var DayKeys = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+// String lists the days, Monday first: "mon,tue,wed". Every day is "".
+func (d Days) String() string {
+	var names []string
+	for _, k := range DayKeys {
+		if d[dayNames[k]] {
+			names = append(names, k)
+		}
+	}
+	if len(names) == 7 {
+		return ""
+	}
+	return strings.Join(names, ",")
 }
 
 func (d Days) Has(wd time.Weekday) bool {

@@ -1,0 +1,77 @@
+{{template "head"}}
+<title>{{if .OldKey}}Edit train{{else}}Add a train{{end}} · Trains</title>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{if .OldKey}}Edit train {{.Number}}{{else}}Add a train{{end}}</h1>
+    <a class="muted" href="./">Back to the trains</a>
+  </header>
+
+  <form class="card" method="post" action="save">
+    {{with .Error}}<div class="error">{{.}}</div>{{end}}
+    <input type="hidden" name="old_key" value="{{.OldKey}}">
+
+    <label class="field"><span>Train number</span>
+      <div class="row">
+        <input type="number" name="number" value="{{.Number}}" min="1" inputmode="numeric" required>
+        <button class="button" formaction="edit" formmethod="get" formnovalidate name="lookup" value="1">Look up today's trains</button>
+      </div>
+    </label>
+
+    {{if .Looked}}
+    <fieldset class="runs">
+      <legend>Which train?</legend>
+      {{with .LookupError}}<div class="problem">{{.}}</div>{{end}}
+      {{range .Runs}}
+      <label><input type="radio" name="origin" value="{{.Origin}}" {{if eq .Origin $.Origin}}checked{{end}}> {{.Description}}</label>
+      {{end}}
+      {{if .Runs}}
+      <label><input type="radio" name="origin" value="" {{if not .Origin}}checked{{end}}> Any {{if eq (len .Runs) 1}}(there is only one){{else}}(won't be tracked while several share the number){{end}}</label>
+      {{else}}
+      <label class="field"><span>Departure station</span>
+        <input type="text" name="origin" value="{{.Origin}}" placeholder="Station name or code, e.g. Milano Centrale">
+      </label>
+      {{end}}
+    </fieldset>
+    {{else}}
+    <label class="field"><span>Departure station <span class="muted">(only if several trains share the number)</span></span>
+      <input type="text" name="origin" value="{{.Origin}}" placeholder="Station name or code, e.g. Milano Centrale">
+    </label>
+    {{end}}
+
+    <label class="field"><span>Label <span class="muted">(optional)</span></span>
+      <input type="text" name="label" value="{{.Label}}" placeholder="Morning commute">
+    </label>
+
+    <fieldset>
+      <legend>Days</legend>
+      <div class="days">
+        {{range .DayKeys}}<label><input type="checkbox" name="days" value="{{.}}" {{if index $.Days .}}checked{{end}}> {{$.DayLabel .}}</label>{{end}}
+      </div>
+    </fieldset>
+
+    <label class="field"><span>Notify at <span class="muted">(optional)</span></span>
+      <input type="time" name="notify_at" value="{{.NotifyAt}}">
+      <div class="muted">At this time, a message is sent if the train is late or cancelled.{{if not .Notify}} No notifier is configured yet, so nothing will be sent.{{end}}</div>
+    </label>
+
+    <label class="field"><span>Late from <span class="muted">(minutes)</span></span>
+      <input type="number" name="late_after" value="{{.LateAfter}}" min="1" placeholder="{{.DefaultLate}}">
+    </label>
+
+    <div class="actions">
+      <button class="button primary">Save</button>
+      <a class="button" href="./">Cancel</a>
+    </div>
+  </form>
+
+  {{if .OldKey}}
+  <form method="post" action="delete" onsubmit="return confirm('Stop tracking train {{.Number}}? Its history is kept.')">
+    <input type="hidden" name="key" value="{{.OldKey}}">
+    <button class="button danger">Delete train</button>
+  </form>
+  {{end}}
+</main>
+</body>
+</html>

@@ -6,9 +6,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"trains/internal/config"
 )
 
 const schema = `
@@ -43,6 +46,21 @@ CREATE TABLE IF NOT EXISTS notifications (
 	error     TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS notifications_run ON notifications (train_key, run_date);
+
+CREATE TABLE IF NOT EXISTS trains (
+	key        TEXT    PRIMARY KEY,
+	number     INTEGER NOT NULL,
+	origin     TEXT    NOT NULL,
+	label      TEXT    NOT NULL,
+	days       TEXT    NOT NULL,
+	notify_at  TEXT    NOT NULL,
+	late_after INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+	key   TEXT PRIMARY KEY,
+	value TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS fetch_errors (
 	id        INTEGER PRIMARY KEY,
@@ -192,6 +210,95 @@ func (s *Store) LastFetchError(ctx context.Context, trainKey, runDate string) (s
 		return "", time.Time{}, nil
 	}
 	return msg, fromUnix(at), err
+}
+
+// ErrTrainExists means another train already has the same number and origin.
+var ErrTrainExists = errors.New("that train is already in the list")
+
+// Trains returns the tracked trains in the order they were added.
+func (s *Store) Trains(ctx context.Context) ([]config.Train, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT number, origin, label, days, notify_at, late_after
+		FROM trains ORDER BY rowid`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []config.Train
+	for rows.Next() {
+		var t config.Train
+		var days string
+		if err := rows.Scan(&t.Number, &t.Origin, &t.Label, &days, &t.NotifyAt, &t.LateAfter); err != nil {
+			return nil, err
+		}
+		if t.Days, err = config.ParseDays(strings.Split(days, ",")); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// SaveTrain adds a train, or replaces the one stored under oldKey. A train
+// keeps its place in the list when edited.
+func (s *Store) SaveTrain(ctx context.Context, oldKey string, t config.Train) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var n int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM trains WHERE key = ? AND key != ?`,
+		t.Key(), oldKey).Scan(&n); err != nil {
+		return err
+	}
+	if n > 0 {
+		return ErrTrainExists
+	}
+	args := []any{t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter}
+	res, err := tx.ExecContext(ctx, `UPDATE trains SET key = ?, number = ?, origin = ?, label = ?,
+		days = ?, notify_at = ?, late_after = ? WHERE key = ?`, append(args, oldKey)...)
+	if err != nil {
+		return err
+	}
+	if updated, _ := res.RowsAffected(); updated == 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO trains (key, number, origin, label, days,
+			notify_at, late_after) VALUES (?, ?, ?, ?, ?, ?, ?)`, args...); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) DeleteTrain(ctx context.Context, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM trains WHERE key = ?`, key)
+	return err
+}
+
+// ImportTrains copies the trains listed in the config file into the
+// database, the first time only: from then on the list is edited on the
+// status page. It reports whether the import happened.
+func (s *Store) ImportTrains(ctx context.Context, trains []config.Train) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO meta (key, value) VALUES ('trains_imported', ?)`,
+		time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return false, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return false, nil
+	}
+	for _, t := range trains {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO trains (key, number, origin, label,
+			days, notify_at, late_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter); err != nil {
+			return false, err
+		}
+	}
+	return true, tx.Commit()
 }
 
 func unix(t time.Time) int64 {

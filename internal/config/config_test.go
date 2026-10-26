@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -35,6 +36,7 @@ trains:
 	if a.Key() != "2034" || b.Key() != "9544@S01700" {
 		t.Errorf("keys %q, %q", a.Key(), b.Key())
 	}
+	a, b = cfg.WithDefaults(a), cfg.WithDefaults(b)
 	if a.LateAfter != 3 || b.LateAfter != 10 {
 		t.Errorf("late_after %d, %d; want 3, 10", a.LateAfter, b.LateAfter)
 	}
@@ -95,5 +97,20 @@ trains: [{number: 1}]
 	}
 	if len(cfg.Warnings) != 1 {
 		t.Errorf("warnings = %q, want one about telegram", cfg.Warnings)
+	}
+}
+
+func TestDaysString(t *testing.T) {
+	for in, want := range map[string]string{
+		"mon-fri": "mon,tue,wed,thu,fri", "sun,mon": "mon,sun", "daily": "", "mon-sun": "", "sat": "sat",
+	} {
+		d, err := ParseDays(strings.Split(in, ","))
+		if err != nil || d.String() != want {
+			t.Errorf("%s: %q, %v; want %q", in, d.String(), err, want)
+		}
+		back, _ := ParseDays(strings.Split(d.String(), ","))
+		if back.String() != want {
+			t.Errorf("%s: doesn't survive a round trip", in)
+		}
 	}
 }

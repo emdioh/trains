@@ -90,15 +90,26 @@ func run(configPath string, log *slog.Logger) error {
 	if len(cfg.Notifiers) == 0 {
 		log.Warn("no notifiers configured: notifications are off")
 	}
-	t := tracker.New(configPath, cfg, vt.New(cfg.BaseURL), st, log)
+	switch imported, err := st.ImportTrains(context.Background(), cfg.Trains); {
+	case err != nil:
+		return fmt.Errorf("importing trains: %w", err)
+	case imported:
+		log.Info("imported the trains from the config file; edit them on the status page from now on",
+			"trains", len(cfg.Trains))
+	case len(cfg.Trains) > 0:
+		log.Warn("the trains listed in the config file are ignored: the list is edited on the status page")
+	}
+	source := vt.New(cfg.BaseURL)
+	t := tracker.New(configPath, cfg, source, st, log)
 	srv := &http.Server{
-		Addr:              cfg.Listen,
-		Handler:           (&web.Server{Config: t.Config, Store: st, Log: log, Now: time.Now}).Handler(),
+		Addr: cfg.Listen,
+		Handler: (&web.Server{Config: t.Config, Store: st, Source: source, Log: log, Now: time.Now,
+			Changed: t.Wake, Refresh: t.Refresh}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("started", "version", version, "listen", cfg.Listen, "trains", len(cfg.Trains))
+	log.Info("started", "version", version, "listen", cfg.Listen)
 
 	done := make(chan struct{})
 	go func() { t.Run(ctx); close(done) }()

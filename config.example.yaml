@@ -1,6 +1,6 @@
 # Copy to trains.yaml (or /etc/trains/trains.yaml) and edit.
-# The file is re-read every minute: train and notifier changes apply
-# without a restart. listen and database need a restart.
+# The file is re-read every minute: notifier changes apply without a
+# restart. listen and database need a restart.
 
 listen: ":8080"            # status page
 database: trains.db        # SQLite; keeps every reading
@@ -17,17 +17,5 @@ notifiers:
   #   url: https://ntfy.sh/my-trains
   #   token: ${NTFY_TOKEN}   # optional
 
-trains:
-  - number: 2034
-    label: Morning commute
-    days: mon-fri          # list ([mon, wed]), range (mon-fri), weekdays, weekends or daily (default)
-    notify_at: "07:20"     # notify at this time if the train is late or cancelled
-  - number: 2077
-    label: Evening
-    days: weekdays
-    notify_at: "17:45"
-    late_after: 10
-  # - number: 652
-  #   origin: Milano Centrale  # needed when several trains share the number:
-  #                            # station name (or part of it) or code (S01700).
-  #                            # `trains check 652` lists them
+# Trains are added and edited on the status page and kept in the database.
+# A `trains:` list here is imported once, on the first start, then ignored.
