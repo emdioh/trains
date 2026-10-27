@@ -32,6 +32,9 @@
     {{with .Problem}}<div class="problem">{{.}}</div>{{end}}
     {{with .Today}}
     <div class="where">{{position .}}{{if .Partial}} · partly cancelled{{end}}</div>
+    {{end}}
+    {{if .Platform}}<div class="platform">Platform <strong>{{.Platform}}</strong>{{with .BoardAt}} at {{.}}{{end}}{{with .PlatformNote}} <span class="muted">· {{.}}</span>{{end}}</div>{{end}}
+    {{with .Today}}
     <div class="muted">Updated {{ago .FetchedAt}}</div>
     {{end}}
     {{if .NotifyAt}}<div class="muted notify" title="Notifies {{.Days}} at {{.NotifyAt}} if {{.LateAfter}}+ min late">

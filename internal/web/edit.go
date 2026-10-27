@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +27,8 @@ type form struct {
 	Days      map[string]bool
 	NotifyAt  string
 	LateAfter string
+	Board     string        // boarding stop's code; empty for the starting station
+	Stops     []historyStop // the stops a train can be boarded at, when known
 
 	DefaultLate int
 	Notify      bool
@@ -56,7 +59,7 @@ func (s *Server) newForm() *form {
 func formFromTrain(f *form, t config.Train) {
 	f.OldKey = t.Key()
 	f.Number = strconv.Itoa(t.Number)
-	f.Origin, f.Label, f.NotifyAt = t.Origin, t.Label, t.NotifyAt
+	f.Origin, f.Label, f.NotifyAt, f.Board = t.Origin, t.Label, t.NotifyAt, t.Board
 	if t.LateAfter > 0 {
 		f.LateAfter = strconv.Itoa(t.LateAfter)
 	}
@@ -72,6 +75,7 @@ func formFromRequest(f *form, v url.Values) {
 	f.Label = strings.TrimSpace(v.Get("label"))
 	f.NotifyAt = strings.TrimSpace(v.Get("notify_at"))
 	f.LateAfter = strings.TrimSpace(v.Get("late_after"))
+	f.Board = v.Get("board")
 	for _, d := range v["days"] {
 		f.Days[d] = true
 	}
@@ -84,7 +88,7 @@ func (f *form) train() (config.Train, error) {
 	if err != nil || n <= 0 {
 		return t, errors.New("enter the train number, e.g. 2034")
 	}
-	t.Number, t.Origin, t.Label, t.NotifyAt = n, f.Origin, f.Label, f.NotifyAt
+	t.Number, t.Origin, t.Label, t.NotifyAt, t.Board = n, f.Origin, f.Label, f.NotifyAt, f.Board
 	if f.LateAfter != "" {
 		if t.LateAfter, err = strconv.Atoi(f.LateAfter); err != nil || t.LateAfter < 1 {
 			return t, errors.New("minutes late must be a whole number, at least 1")
@@ -132,7 +136,33 @@ func (s *Server) edit(w http.ResponseWriter, r *http.Request) {
 	if q.Has("lookup") {
 		s.lookup(r.Context(), f)
 	}
+	if err := s.loadStops(r.Context(), f); err != nil {
+		s.fail(w, err)
+		return
+	}
 	s.render(w, http.StatusOK, "edit.html", f)
+}
+
+// loadStops lists the stops the train departs from, from its most recent
+// recorded run, for choosing where to board. A new train has none yet.
+func (s *Server) loadStops(ctx context.Context, f *form) error {
+	if f.OldKey == "" {
+		return nil
+	}
+	dates, err := s.Store.RunDates(ctx, f.OldKey, 1)
+	if err != nil || len(dates) == 0 {
+		return err
+	}
+	rd, err := s.Store.RunReading(ctx, f.OldKey, dates[0])
+	if err != nil || rd == nil {
+		return err
+	}
+	var st vt.Status
+	json.Unmarshal([]byte(rd.Raw), &st)
+	if len(st.Stops) > 1 {
+		f.Stops = stopsOf(st)[:len(st.Stops)-1] // no departure from the last stop
+	}
+	return nil
 }
 
 func (s *Server) findTrain(ctx context.Context, key string) (*config.Train, error) {
@@ -199,6 +229,10 @@ func (s *Server) save(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		f.Error = err.Error()
+		if err := s.loadStops(r.Context(), f); err != nil {
+			s.fail(w, err)
+			return
+		}
 		s.render(w, http.StatusBadRequest, "edit.html", f)
 		return
 	}

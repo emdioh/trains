@@ -67,6 +67,11 @@ stays in the database. Changes apply immediately.
   also type the departure station's name (or part of it, like
   `Milano Centrale`) or its code (`S01700`). A number shared by several
   trains isn't tracked until one is chosen; the status page says so.
+- **Board at:** the stop you get on at, the starting station by default.
+  When ViaggiaTreno knows its departure platform, the status page shows it,
+  marked "planned" until confirmed and noting any change (e.g. "Platform 5
+  · changed from 3"). The other stops can be picked once a run has been
+  recorded.
 - **Notify on:** the weekdays to send notifications on. The train itself is
   tracked every day it runs, so its history is complete; on days
   ViaggiaTreno lists no run (weekends, holidays) the status page says "Not

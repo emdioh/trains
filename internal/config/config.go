@@ -50,6 +50,9 @@ type Train struct {
 	// if the train is late or cancelled. Empty means never.
 	NotifyAt  string `yaml:"notify_at"`
 	LateAfter int    `yaml:"late_after"`
+	// Board is the station code whose departure platform the status page
+	// shows. Empty means the starting station.
+	Board string `yaml:"board"`
 }
 
 // Key identifies a configured train in the database.

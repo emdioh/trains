@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -172,5 +173,55 @@ func TestStopsPage(t *testing.T) {
 	}
 	if resp, _ := http.Get(e.srv.URL + "/stops?key=nope"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown train: %s", resp.Status)
+	}
+}
+
+func TestBoardingPlatform(t *testing.T) {
+	raw := `{"fermate":[
+		{"id":"S01700","stazione":"MILANO CENTRALE","binarioProgrammatoPartenzaDescrizione":"14","binarioEffettivoPartenzaDescrizione":"14"},
+		{"id":"S01708","stazione":"TREVIGLIO","binarioProgrammatoPartenzaDescrizione":"3","binarioEffettivoPartenzaDescrizione":"5"},
+		{"id":"S01530","stazione":"VERDELLO","binarioProgrammatoPartenzaDescrizione":"2"},
+		{"id":"S01529","stazione":"BERGAMO"}]}`
+	for board, want := range map[string]string{
+		"":       "14||",
+		"S01708": "5|changed from 3|Treviglio",
+		"S01530": "2|planned|Verdello",
+		"S01529": "||",   // the terminus has no departure platform
+		"S99999": "14||", // an unknown stop falls back to the start
+	} {
+		p, note, at := boardingPlatform(raw, board)
+		if got := p + "|" + note + "|" + at; got != want {
+			t.Errorf("board %q: %s, want %s", board, got, want)
+		}
+	}
+}
+
+func TestPlatformOnStatusPageAndBoardChoice(t *testing.T) {
+	e := historyEnv(t)
+	ctx := context.Background()
+	// Today's run, with platforms.
+	err := e.st.AddReading(ctx, &store.Reading{TrainKey: "2034", Number: 2034, RunDate: "2026-10-26",
+		FetchedAt: time.Date(2026, 10, 26, 7, 39, 0, 0, vt.Rome), State: "running", Name: "REG 2034",
+		Raw: `{"fermate":[{"id":"S01700","stazione":"MILANO CENTRALE","binarioProgrammatoPartenzaDescrizione":"14"},
+			{"id":"S01708","stazione":"TREVIGLIO","binarioProgrammatoPartenzaDescrizione":"3","binarioEffettivoPartenzaDescrizione":"5"},
+			{"id":"S01529","stazione":"BERGAMO"}]}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := html.UnescapeString(get(t, e.srv.URL))
+	if !strings.Contains(page, "Platform <strong>14</strong> <span class=\"muted\">· planned</span>") {
+		t.Error("status page doesn't show the starting station's planned platform")
+	}
+
+	form := html.UnescapeString(get(t, e.srv.URL+"/edit?key=2034"))
+	if !strings.Contains(form, "Milano Centrale (starting station)") || !strings.Contains(form, `value="S01708"`) ||
+		strings.Contains(form, `value="S01529"`) {
+		t.Error("board choice should list the departure stops, not the terminus")
+	}
+	post(t, e.srv.URL+"/save", url.Values{"old_key": {"2034"}, "number": {"2034"}, "days": {"mon"},
+		"notify_at": {"07:20"}, "board": {"S01708"}})
+	page = html.UnescapeString(get(t, e.srv.URL))
+	if !strings.Contains(page, "Platform <strong>5</strong> at Treviglio <span class=\"muted\">· changed from 3</span>") {
+		t.Error("status page doesn't show the chosen stop's changed platform")
 	}
 }

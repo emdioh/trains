@@ -86,3 +86,31 @@ func TestImportTrainsOnce(t *testing.T) {
 		t.Errorf("trains = %v, want just 2", got)
 	}
 }
+
+func TestMigrateAddsBoard(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	// A database as v0.3.x created it: no board column.
+	old, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.db.Exec(`ALTER TABLE trains DROP COLUMN board`); err != nil {
+		t.Fatal(err)
+	}
+	old.db.Exec(`INSERT INTO trains (key, number, origin, label, days, notify_at, late_after)
+		VALUES ('2034', 2034, '', '', '', '', 0)`)
+	old.Close()
+
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.SaveTrain(context.Background(), "2034", config.Train{Number: 2034, Board: "S01708"}); err != nil {
+		t.Fatal(err)
+	}
+	trains, _ := st.Trains(context.Background())
+	if len(trains) != 1 || trains[0].Board != "S01708" {
+		t.Errorf("trains = %+v", trains)
+	}
+}

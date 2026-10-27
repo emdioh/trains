@@ -48,6 +48,12 @@ type Train struct {
 	NotifyAt  string `json:"notify_at,omitempty"`
 	LateAfter int    `json:"late_after"`
 	Days      string `json:"days"` // when it notifies, e.g. "Mon–Fri"
+	// Platform is the departure platform at the boarding stop, when known.
+	Platform string `json:"platform,omitempty"`
+	// PlatformNote says "planned" or "changed from 3".
+	PlatformNote string `json:"platform_note,omitempty"`
+	// BoardAt names the boarding stop when it isn't the starting station.
+	BoardAt string `json:"board_at,omitempty"`
 	// Week has one entry per day, Monday first: whether it notifies then,
 	// and which day is today.
 	Week    []weekDay        `json:"-"`
@@ -113,6 +119,15 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 			t.Today, history = history[0], history[1:]
 		}
 		t.History = history[:min(len(history), historyRuns)]
+		if t.Today != nil {
+			rd, err := s.Store.RunReading(ctx, c.Key(), today)
+			if err != nil {
+				return nil, err
+			}
+			if rd != nil {
+				t.Platform, t.PlatformNote, t.BoardAt = boardingPlatform(rd.Raw, c.Board)
+			}
+		}
 		if t.Today == nil {
 			if t.Problem, _, err = s.Store.LastFetchError(ctx, c.Key(), today); err != nil {
 				return nil, err
@@ -200,6 +215,39 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	s.Log.Error("serving page", "err", err)
 	http.Error(w, "internal error", http.StatusInternalServerError)
+}
+
+// boardingPlatform reads the departure platform at the boarding stop (the
+// first stop unless board names another) from a raw status. The actual
+// platform wins over the planned one; a change is noted.
+func boardingPlatform(raw, board string) (platform, note, at string) {
+	var st vt.Status
+	if json.Unmarshal([]byte(raw), &st) != nil || len(st.Stops) == 0 {
+		return "", "", ""
+	}
+	stop := st.Stops[0]
+	if board != "" {
+		for i, s := range st.Stops {
+			if string(s.ID) == board {
+				stop = s
+				if i > 0 {
+					at = tracker.Title(string(s.Station))
+				}
+				break
+			}
+		}
+	}
+	planned := strings.TrimSpace(string(stop.PlannedDeparturePlatform))
+	actual := strings.TrimSpace(string(stop.ActualDeparturePlatform))
+	switch {
+	case actual != "" && planned != "" && actual != planned:
+		return actual, "changed from " + planned, at
+	case actual != "":
+		return actual, "", at
+	case planned != "":
+		return planned, "planned", at
+	}
+	return "", "", ""
 }
 
 type weekDay struct {

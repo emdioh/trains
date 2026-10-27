@@ -44,6 +44,18 @@
       <input type="text" name="label" value="{{.Label}}" placeholder="Morning commute">
     </label>
 
+    <label class="field"><span>Board at</span>
+      {{if .Stops}}
+      <select name="board">
+        {{range $i, $s := .Stops}}<option value="{{if $i}}{{$s.ID}}{{end}}" {{if or (eq $s.ID $.Board) (and (not $i) (not $.Board))}}selected{{end}}>{{$s.Name}}{{if not $i}} (starting station){{end}}</option>{{end}}
+      </select>
+      {{else}}
+      <input type="hidden" name="board" value="{{.Board}}">
+      <div class="muted">{{if .Board}}Station {{.Board}}{{else}}The starting station{{end}}. The other stops can be chosen once a run has been recorded.</div>
+      {{end}}
+      <div class="muted">The status page shows the departure platform here, when it's known.</div>
+    </label>
+
     <fieldset>
       <legend>Notify on</legend>
       <div class="days">

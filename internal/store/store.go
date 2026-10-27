@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -54,7 +55,8 @@ CREATE TABLE IF NOT EXISTS trains (
 	label      TEXT    NOT NULL,
 	days       TEXT    NOT NULL,
 	notify_at  TEXT    NOT NULL,
-	late_after INTEGER NOT NULL
+	late_after INTEGER NOT NULL,
+	board      TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -88,10 +90,39 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("upgrading the database: %w", err)
+	}
 	return &Store{db: db}, nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
+
+// migrate adds the columns that later versions introduced to tables that
+// an earlier version created.
+func migrate(db *sql.DB) error {
+	columns := map[string]bool{}
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('trains')`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return err
+		}
+		columns[name] = true
+	}
+	rows.Close()
+	if !columns["board"] {
+		if _, err := db.Exec(`ALTER TABLE trains ADD COLUMN board TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type Reading struct {
 	TrainKey           string    `json:"-"`
@@ -288,7 +319,7 @@ var ErrTrainExists = errors.New("that train is already in the list")
 
 // Trains returns the tracked trains in the order they were added.
 func (s *Store) Trains(ctx context.Context) ([]config.Train, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT number, origin, label, days, notify_at, late_after
+	rows, err := s.db.QueryContext(ctx, `SELECT number, origin, label, days, notify_at, late_after, board
 		FROM trains ORDER BY rowid`)
 	if err != nil {
 		return nil, err
@@ -298,7 +329,7 @@ func (s *Store) Trains(ctx context.Context) ([]config.Train, error) {
 	for rows.Next() {
 		var t config.Train
 		var days string
-		if err := rows.Scan(&t.Number, &t.Origin, &t.Label, &days, &t.NotifyAt, &t.LateAfter); err != nil {
+		if err := rows.Scan(&t.Number, &t.Origin, &t.Label, &days, &t.NotifyAt, &t.LateAfter, &t.Board); err != nil {
 			return nil, err
 		}
 		if t.Days, err = config.ParseDays(strings.Split(days, ",")); err != nil {
@@ -325,15 +356,15 @@ func (s *Store) SaveTrain(ctx context.Context, oldKey string, t config.Train) er
 	if n > 0 {
 		return ErrTrainExists
 	}
-	args := []any{t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter}
+	args := []any{t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter, t.Board}
 	res, err := tx.ExecContext(ctx, `UPDATE trains SET key = ?, number = ?, origin = ?, label = ?,
-		days = ?, notify_at = ?, late_after = ? WHERE key = ?`, append(args, oldKey)...)
+		days = ?, notify_at = ?, late_after = ?, board = ? WHERE key = ?`, append(args, oldKey)...)
 	if err != nil {
 		return err
 	}
 	if updated, _ := res.RowsAffected(); updated == 0 {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO trains (key, number, origin, label, days,
-			notify_at, late_after) VALUES (?, ?, ?, ?, ?, ?, ?)`, args...); err != nil {
+			notify_at, late_after, board) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args...); err != nil {
 			return err
 		}
 	}
@@ -364,8 +395,8 @@ func (s *Store) ImportTrains(ctx context.Context, trains []config.Train) (bool, 
 	}
 	for _, t := range trains {
 		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO trains (key, number, origin, label,
-			days, notify_at, late_after) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter); err != nil {
+			days, notify_at, late_after, board) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			t.Key(), t.Number, t.Origin, t.Label, t.Days.String(), t.NotifyAt, t.LateAfter, t.Board); err != nil {
 			return false, err
 		}
 	}
