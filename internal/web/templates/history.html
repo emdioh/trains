@@ -1,0 +1,233 @@
+{{template "head"}}
+<title>{{.Title}} history · Trains</title>
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 16px; }
+  .filters label { display: flex; gap: 6px; align-items: center; font-size: .875rem; }
+  .filters select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--text); max-width: 100%; }
+  .card h2 { font-size: 1rem; margin: 0 0 2px; }
+  .figures { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 12px 0; }
+  .figure .label { font-size: .75rem; color: var(--muted); }
+  .figure .value { font-weight: 600; font-size: 1.25rem; }
+  .chart { position: relative; height: 220px; }
+  .chart svg { display: block; overflow: visible; }
+  .chart svg:focus { outline: 2px solid var(--series); outline-offset: 4px; border-radius: 4px; }
+  .chart .tick { fill: var(--ink-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .chart .ref { fill: var(--muted); font-size: 11px; }
+  .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 10px; font-size: .8125rem; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+    white-space: nowrap; transform: translate(-50%, -100%); }
+  .tip strong { display: block; font-size: .9375rem; }
+  .tip span { color: var(--muted); }
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .875rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: .875rem; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  td.num { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{.Title}}</h1>
+    <a class="muted" href="./">Back to the trains</a>
+  </header>
+
+  <form class="filters" method="get" action="history">
+    <input type="hidden" name="key" value="{{.Key}}">
+    <label>Period
+      <select name="days" onchange="this.form.submit()">
+        {{range .Ranges}}<option value="{{.}}" {{if eq . $.Days}}selected{{end}}>Last {{.}} days</option>{{end}}
+      </select>
+    </label>
+    <label>Stop
+      <select name="stop" onchange="this.form.submit()">
+        <option value="">Choose a stop…</option>
+        {{range .Stops}}<option value="{{.ID}}" {{if eq .ID $.Stop}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
+    <noscript><button class="button small">Show</button></noscript>
+  </form>
+
+  {{if not .Data.Runs}}
+  <section class="card empty"><p>No runs recorded in the last {{.Days}} days.</p></section>
+  {{else}}
+  <section class="card">
+    <h2>Delay at the end of the line{{with .Terminus}} · {{.}}{{end}}</h2>
+    <div class="muted">Arrival delay of each run. Late from {{.Data.LateAfter}} min.</div>
+    {{template "figures" .Final}}
+    <div class="chart" data-field="final" aria-label="Arrival delay at the end of the line, per run"></div>
+  </section>
+
+  <section class="card">
+    {{if .Stop}}
+    <h2>Delay at {{.StopName}}</h2>
+    <div class="muted">Arrival delay there (departure delay at the first stop).</div>
+    {{template "figures" .AtStop}}
+    <div class="chart" data-field="stop" aria-label="Delay at {{.StopName}}, per run"></div>
+    {{else}}
+    <h2>Delay at a stop</h2>
+    <p class="muted">Choose a stop above to see how late the train is there, run by run.</p>
+    {{end}}
+  </section>
+
+  <details>
+    <summary>Show as a table</summary>
+    <table>
+      <tr><th>Day</th><th>At the end of the line</th>{{if .Stop}}<th>At {{.StopName}}</th>{{end}}<th></th></tr>
+      {{range .Data.Runs}}
+      <tr><td>{{.Label}}</td>
+        <td class="num">{{with .Final}}{{minutes .}}{{else}}–{{end}}</td>
+        {{if $.Stop}}<td class="num">{{with .Stop}}{{minutes .}}{{else}}–{{end}}</td>{{end}}
+        <td class="muted">{{.Note}}</td></tr>
+      {{end}}
+    </table>
+  </details>
+  {{end}}
+</main>
+
+{{define "figures"}}
+<div class="figures">
+  <div class="figure"><div class="label">Runs</div><div class="value">{{.Runs}}</div></div>
+  {{if .Runs}}
+  <div class="figure"><div class="label">On time</div><div class="value">{{.OnTimePct}}%</div></div>
+  <div class="figure"><div class="label">Median</div><div class="value">{{minutes .Median}}</div></div>
+  <div class="figure"><div class="label">Worst</div><div class="value">{{minutes .Worst}}</div></div>
+  {{end}}
+  {{if .Cancelled}}<div class="figure"><div class="label">Cancelled</div><div class="value">{{.Cancelled}}</div></div>{{end}}
+</div>
+{{end}}
+
+<script>
+const DATA = {{.Data}};
+const NS = "http://www.w3.org/2000/svg";
+
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function fmt(v) { return v > 0 ? "+" + v + " min" : v + " min"; }
+
+// A column from the baseline y0 to the data end y1, rounded only at the data end.
+function barPath(x, w, y0, y1, r) {
+  r = Math.min(r, w / 2, Math.abs(y1 - y0));
+  const d = y1 < y0 ? 1 : -1; // up for late, down for early
+  return `M${x},${y0}V${y1 + d * r}Q${x},${y1} ${x + r},${y1}H${x + w - r}` +
+    `Q${x + w},${y1} ${x + w},${y1 + d * r}V${y0}Z`;
+}
+
+const DAY = 86400000;
+function dayNum(date) { const [y, m, d] = date.split("-").map(Number); return Date.UTC(y, m - 1, d) / DAY; }
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function draw(box) {
+  const field = box.dataset.field;
+  const runs = DATA.runs;
+  box.textContent = "";
+  const W = box.clientWidth, H = box.clientHeight;
+  const m = { t: 10, r: 34, b: 24, l: 40 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const y = v => m.t + ih * (DATA.y_max - v) / (DATA.y_max - DATA.y_min);
+  // A date axis: days without a run stay visible as gaps.
+  const first = dayNum(runs[0].date), last = dayNum(runs[runs.length - 1].date);
+  const slot = iw / (last - first + 1);
+  const x = n => m.l + slot * (n - first + 0.5);
+  const bw = Math.max(1, Math.min(24, slot - 2));
+  const svg = el("svg", { width: W, height: H, role: "img", tabindex: 0,
+    "aria-label": box.getAttribute("aria-label") }, box);
+
+  for (const t of DATA.ticks) {
+    el("line", { x1: m.l, x2: m.l + iw, y1: y(t), y2: y(t),
+      stroke: t === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }, svg);
+    el("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end", class: "tick" }, svg)
+      .textContent = t > 0 ? "+" + t : String(t);
+  }
+  // The late threshold: a hairline, labelled in the right margin.
+  const ly = y(DATA.late_after);
+  el("line", { x1: m.l, x2: m.l + iw, y1: ly, y2: ly, stroke: "var(--muted)", "stroke-width": 1 }, svg);
+  el("text", { x: m.l + iw + 4, y: ly + 4, class: "ref" }, svg).textContent = "late";
+
+  const bars = runs.map(r => {
+    const cx = x(dayNum(r.date)), v = r[field];
+    if (v == null) {
+      if (r.cancelled) {
+        const cy = y(0) - 6, s = 3;
+        el("path", { d: `M${cx - s},${cy - s}L${cx + s},${cy + s}M${cx + s},${cy - s}L${cx - s},${cy + s}`,
+          stroke: "var(--ink-muted)", "stroke-width": 1.5, "stroke-linecap": "round" }, svg);
+      }
+      return null;
+    }
+    const y0 = y(0), y1 = v === 0 ? y0 - 2 : y(v);
+    return el("path", { d: barPath(cx - bw / 2, bw, y0, y1, 4), fill: "var(--series)" }, svg);
+  });
+
+  // Date labels: Mondays for short spans, the 1st of each month for long
+  // ones, skipping any that would collide.
+  const monthly = last - first > 120;
+  let lastLabel = -Infinity;
+  for (let n = first; n <= last; n++) {
+    const d = new Date(n * DAY);
+    if (monthly ? d.getUTCDate() !== 1 : d.getUTCDay() !== 1) continue;
+    if (x(n) - lastLabel < 56 || x(n) < m.l + 16 || x(n) > m.l + iw - 16) continue;
+    lastLabel = x(n);
+    el("text", { x: x(n), y: H - 6, "text-anchor": "middle", class: "tick" }, svg)
+      .textContent = monthly ? MONTHS[d.getUTCMonth()] : d.getUTCDate() + " " + MONTHS[d.getUTCMonth()];
+  }
+
+  // Hover and keyboard: the nearest run's value in a tooltip.
+  const tip = document.createElement("div");
+  tip.className = "tip";
+  tip.hidden = true;
+  box.appendChild(tip);
+  let current = -1;
+  function show(i) {
+    current = Math.max(0, Math.min(runs.length - 1, i));
+    const r = runs[current], v = r[field];
+    tip.textContent = "";
+    const strong = document.createElement("strong");
+    strong.textContent = v != null ? fmt(v) : (r.cancelled ? "Cancelled" : "No data");
+    const sub = document.createElement("span");
+    sub.textContent = r.label + (r.note && !r.cancelled ? " · " + r.note : "");
+    tip.append(strong, sub);
+    tip.hidden = false;
+    const cx = x(dayNum(r.date));
+    tip.style.left = Math.max(70, Math.min(W - 70, cx)) + "px";
+    tip.style.top = (v != null ? Math.min(y(v), y(0)) : y(0)) - 8 + "px";
+    bars.forEach((b, j) => b && b.setAttribute("opacity", j === current ? 1 : 0.55));
+  }
+  function hide() {
+    tip.hidden = true;
+    current = -1;
+    bars.forEach(b => b && b.setAttribute("opacity", 1));
+  }
+  function nearest(px) {
+    let best = 0;
+    runs.forEach((r, i) => {
+      if (Math.abs(x(dayNum(r.date)) - px) < Math.abs(x(dayNum(runs[best].date)) - px)) best = i;
+    });
+    return best;
+  }
+  svg.addEventListener("pointermove", e => show(nearest(e.clientX - svg.getBoundingClientRect().left)));
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("blur", hide);
+  svg.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      show(current < 0 ? runs.length - 1 : current + (e.key === "ArrowRight" ? 1 : -1));
+    }
+  });
+}
+
+const charts = document.querySelectorAll(".chart");
+charts.forEach(draw);
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => charts.forEach(draw), 100);
+});
+</script>
+</body>
+</html>

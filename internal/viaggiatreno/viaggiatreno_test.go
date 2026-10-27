@@ -97,3 +97,23 @@ func TestClient(t *testing.T) {
 		t.Errorf("unknown train: err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestStopDelays(t *testing.T) {
+	min := func(m int) Int { return Int(1792969200000 + int64(m)*60000) }
+	for name, tc := range map[string]struct {
+		stop Stop
+		want int
+		ok   bool
+	}{
+		"arrived late":    {Stop{ScheduledArrivalMs: min(100), ActualArrivalMs: min(107)}, 7, true},
+		"arrived early":   {Stop{ScheduledArrivalMs: min(100), ActualArrivalMs: min(98)}, -2, true},
+		"origin departed": {Stop{ScheduledDepartureMs: min(10), ActualDepartureMs: min(13)}, 3, true},
+		"not reached":     {Stop{ScheduledArrivalMs: min(100)}, 0, false},
+		"reported only":   {Stop{ActualMs: min(5), Delay: 4}, 4, true},
+	} {
+		got, ok := tc.stop.DelayMinutes()
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("%s: %d, %v; want %d, %v", name, got, ok, tc.want, tc.ok)
+		}
+	}
+}

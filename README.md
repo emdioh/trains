@@ -29,6 +29,23 @@ Trenord and the rest.
   running today straight away. The same data
   is at `/api/trains` as JSON.
 
+## History
+
+**History** next to each train charts its past runs, one column per day
+(early runs go below the line), for the last 30, 90 or 365 days:
+
+- **Delay at the end of the line:** the arrival delay at the last stop.
+- **Delay at a stop:** pick any stop on the route to see the arrival delay
+  there (the departure delay, for the first stop).
+
+Above each chart: how many runs, the share on time (under the train's
+"late from" minutes), the median and the worst delay, and cancellations.
+Hovering, or the arrow keys, shows each run's value, and **Show as a
+table** lists them all. Everything comes from the readings already stored,
+so past days are included. A run whose polling stopped before the end of
+the line has no final delay. The same data is at
+`/api/history?key=2034&days=90&stop=S01708`.
+
 ## Trains
 
 Trains are managed on the status page: **Add a train**, or **Edit** and

@@ -2,6 +2,7 @@ package viaggiatreno
 
 import (
 	"encoding/json"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,48 @@ type Stop struct {
 	ScheduledMs Int    `json:"programmata"`
 	ActualMs    Int    `json:"effettiva"`
 	Delay       Int    `json:"ritardo"`
+
+	ScheduledArrivalMs   Int `json:"arrivo_teorico"`
+	ActualArrivalMs      Int `json:"arrivoReale"`
+	ArrivalDelay         Int `json:"ritardoArrivo"`
+	ScheduledDepartureMs Int `json:"partenza_teorica"`
+	ActualDepartureMs    Int `json:"partenzaReale"`
+	DepartureDelay       Int `json:"ritardoPartenza"`
+}
+
+// ArrivalDelayMinutes is the train's delay arriving at the stop, and false
+// when it hasn't arrived there (or the data doesn't say).
+func (s Stop) ArrivalDelayMinutes() (int, bool) {
+	return delayAt(s.ScheduledArrivalMs, s.ActualArrivalMs, s.ArrivalDelay)
+}
+
+// DepartureDelayMinutes is the delay leaving the stop, and false when it
+// hasn't left yet.
+func (s Stop) DepartureDelayMinutes() (int, bool) {
+	return delayAt(s.ScheduledDepartureMs, s.ActualDepartureMs, s.DepartureDelay)
+}
+
+// DelayMinutes is the delay at the stop: arriving there, or leaving it for
+// the first stop. It falls back to the generic programmata/effettiva pair.
+func (s Stop) DelayMinutes() (int, bool) {
+	if d, ok := s.ArrivalDelayMinutes(); ok {
+		return d, true
+	}
+	if d, ok := s.DepartureDelayMinutes(); ok {
+		return d, true
+	}
+	return delayAt(s.ScheduledMs, s.ActualMs, s.Delay)
+}
+
+func delayAt(scheduled, actual, reported Int) (int, bool) {
+	switch {
+	case actual <= 0:
+		return 0, false
+	case scheduled > 0:
+		// Round to the nearest minute, as the timetable does.
+		return int(math.Round(float64(actual-scheduled) / 60000)), true
+	}
+	return int(reported), true
 }
 
 type State string

@@ -160,6 +160,42 @@ func (s *Store) History(ctx context.Context, trainKey string, runs int) ([]*Read
 	return out, rows.Err()
 }
 
+// FinalReadings returns the last reading of each of the train's runs since
+// the given run date, oldest first, with its raw API response.
+func (s *Store) FinalReadings(ctx context.Context, trainKey, since string) ([]*Reading, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT `+readingColumns+`, raw FROM readings
+		WHERE id IN (SELECT MAX(id) FROM readings WHERE train_key = ? AND run_date >= ?
+			GROUP BY run_date)
+		ORDER BY run_date`, trainKey, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Reading
+	for rows.Next() {
+		var raw string
+		r, err := scanReading(scanWith(rows, &raw))
+		if err != nil {
+			return nil, err
+		}
+		r.Raw = raw
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// scanWith appends extra destinations after a reading's columns.
+type scanWithExtra struct {
+	row   interface{ Scan(...any) error }
+	extra []any
+}
+
+func scanWith(row interface{ Scan(...any) error }, extra ...any) scanWithExtra {
+	return scanWithExtra{row, extra}
+}
+
+func (s scanWithExtra) Scan(dest ...any) error { return s.row.Scan(append(dest, s.extra...)...) }
+
 func scanReading(row interface{ Scan(...any) error }) (*Reading, error) {
 	var r Reading
 	var fetched, lastSeen, dep, arr int64

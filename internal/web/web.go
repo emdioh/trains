@@ -64,12 +64,15 @@ func (s *Server) Handler() http.Handler {
 		"delay":    delayText,
 		"level":    level,
 		"day":      day,
+		"minutes":  minutes,
 	}).ParseFS(templates, "templates/*.html"))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.index)
 	mux.HandleFunc("GET /api/trains", s.api)
 	mux.HandleFunc("GET /edit", s.edit)
+	mux.HandleFunc("GET /history", s.history)
+	mux.HandleFunc("GET /api/history", s.historyAPI)
 	mux.HandleFunc("POST /save", s.save)
 	mux.HandleFunc("POST /delete", s.delete)
 	mux.HandleFunc("POST /refresh", s.refresh)
