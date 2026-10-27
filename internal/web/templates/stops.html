@@ -1,0 +1,79 @@
+{{template "head"}}
+<title>{{.Title}} stops · Trains</title>
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 16px; }
+  .filters label { display: flex; gap: 6px; align-items: center; font-size: .875rem; }
+  .filters select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--text); }
+  .stops { list-style: none; margin: 12px 0 0; padding: 0; }
+  .stops li { display: grid; grid-template-columns: minmax(0, 1fr) 6.5rem 6.5rem; gap: 4px 12px;
+    align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+  .stops li.head { font-size: .75rem; color: var(--muted); border-top: 0; padding-bottom: 4px; }
+  .stops .station { font-weight: 600; overflow-wrap: break-word; }
+  .stops .station small { font-weight: 400; color: var(--muted); }
+  .stops .seen { font-size: .75rem; font-weight: 600; color: var(--series); white-space: nowrap; }
+  .stops li.cancelled .station, .stops li.cancelled .time { text-decoration: line-through; color: var(--muted); }
+  .time { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time .sched { color: var(--muted); font-size: .8125rem; }
+  @media (max-width: 480px) {
+    .stops li { grid-template-columns: 1fr 1fr; }
+    .stops .station { grid-column: 1 / -1; }
+    .stops li.head span:first-child { display: none; }
+  }
+  .time .d { font-size: .75rem; font-weight: 600; padding: 0 5px; border-radius: 4px; margin-left: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{.Title}}</h1>
+    <a class="muted" href="./">Back to the trains</a>
+  </header>
+
+  {{if .Dates}}
+  <form class="filters" method="get" action="stops">
+    <input type="hidden" name="key" value="{{.Key}}">
+    <label>Run
+      <select name="date" onchange="this.form.submit()">
+        {{range .Dates}}<option value="{{.Date}}" {{if eq .Date $.Date}}selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </label>
+    <noscript><button class="button small">Show</button></noscript>
+    <a class="muted" href="history?key={{.Key}}">History</a>
+  </form>
+  {{end}}
+
+  <section class="card">
+    {{if .Rows}}
+    <div class="name">{{.Route}}</div>
+    <div class="muted">{{.Position}} · as of {{hhmm .Fetched}}</div>
+    {{with .Note}}<div class="problem">{{.}}</div>{{end}}
+    <ol class="stops">
+      <li class="head"><span>Stop</span><span>Arrival</span><span>Departure</span></li>
+      {{range .Rows}}
+      <li{{if .Cancelled}} class="cancelled"{{end}}>
+        <span class="station">{{.Name}}{{with .Platform}} <small>· platform {{.}}</small>{{end}}
+          {{if .LastSeen}}<span class="seen">● last seen</span>{{end}}
+          {{if .Cancelled}}<small>cancelled</small>{{end}}</span>
+        {{template "stoptime" .Arrival}}
+        {{template "stoptime" .Departure}}
+      </li>
+      {{end}}
+    </ol>
+    {{else if .Dates}}
+    <p class="muted">No stop times were recorded for this run.</p>
+    {{else}}
+    <p class="muted">No runs recorded yet.</p>
+    {{end}}
+  </section>
+</main>
+</body>
+</html>
+
+{{define "stoptime"}}
+<span class="time">{{if .Scheduled}}
+  {{if .Actual}}{{.Actual}}{{with .Delay}} <span class="d {{$.Level}}">{{delaySign .}}</span>{{end}}
+  <div class="sched">sched. {{.Scheduled}}</div>
+  {{else}}<span class="sched">{{.Scheduled}}</span>{{end}}
+{{end}}</span>
+{{end}}

@@ -18,7 +18,7 @@
   <section class="card">
     <div class="top">
       <div>
-        <div class="name">{{if .Label}}{{.Label}} · {{end}}{{with .Today}}{{.Name}}{{else}}{{.Number}}{{end}}<a class="edit" href="history?key={{.Key}}">History</a><a class="edit" href="edit?key={{.Key}}">Edit</a><form class="inline" method="post" action="delete" onsubmit="return confirm('Stop tracking train {{.Number}}? Its history is kept.')"><input type="hidden" name="key" value="{{.Key}}"><button class="edit">Delete</button></form></div>
+        <div class="name">{{if .Label}}{{.Label}} · {{end}}{{with .Today}}{{.Name}}{{else}}{{.Number}}{{end}}<a class="edit" href="stops?key={{.Key}}">Stops</a><a class="edit" href="history?key={{.Key}}">History</a><a class="edit" href="edit?key={{.Key}}">Edit</a><form class="inline" method="post" action="delete" onsubmit="return confirm('Stop tracking train {{.Number}}? Its history is kept.')"><input type="hidden" name="key" value="{{.Key}}"><button class="edit">Delete</button></form></div>
         {{with .Today}}
         <div class="muted">{{title .OriginName}} {{hhmm .ScheduledDeparture}} → {{title .DestinationName}} {{hhmm .ScheduledArrival}}</div>
         {{end}}

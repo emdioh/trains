@@ -66,6 +66,12 @@ func (s *Server) Handler() http.Handler {
 		"level":    level,
 		"day":      day,
 		"minutes":  minutes,
+		"delaySign": func(m int) string {
+			if m > 0 {
+				return fmt.Sprintf("+%d", m)
+			}
+			return fmt.Sprint(m)
+		},
 	}).ParseFS(templates, "templates/*.html"))
 
 	mux := http.NewServeMux()
@@ -73,6 +79,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/trains", s.api)
 	mux.HandleFunc("GET /edit", s.edit)
 	mux.HandleFunc("GET /history", s.history)
+	mux.HandleFunc("GET /stops", s.stops)
 	mux.HandleFunc("GET /api/history", s.historyAPI)
 	mux.HandleFunc("POST /save", s.save)
 	mux.HandleFunc("POST /delete", s.delete)

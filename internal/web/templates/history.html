@@ -76,7 +76,7 @@
     <table>
       <tr><th>Day</th><th>At the end of the line</th>{{if .Stop}}<th>At {{.StopName}}</th>{{end}}<th></th></tr>
       {{range .Data.Runs}}
-      <tr><td>{{.Label}}</td>
+      <tr><td><a href="stops?key={{$.Key}}&amp;date={{.Date}}">{{.Label}}</a></td>
         <td class="num">{{with .Final}}{{minutes .}}{{else}}–{{end}}</td>
         {{if $.Stop}}<td class="num">{{with .Stop}}{{minutes .}}{{else}}–{{end}}</td>{{end}}
         <td class="muted">{{.Note}}</td></tr>

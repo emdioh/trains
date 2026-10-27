@@ -46,6 +46,14 @@ so past days are included. A run whose polling stopped before the end of
 the line has no final delay. The same data is at
 `/api/history?key=2034&days=90&stop=S01708`.
 
+## Stops
+
+**Stops** next to each train lists every stop of a run: scheduled and
+actual arrival and departure, the delay at each, the platform, cancelled
+stops, and where the train was last seen. It opens on the most recent run;
+the **Run** menu picks any earlier recorded day, and the dates in the
+history table link to it. Times are as of the run's last reading.
+
 ## Trains
 
 Trains are managed on the status page: **Add a train**, or **Edit** and

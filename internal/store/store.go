@@ -138,6 +138,41 @@ func (s *Store) LatestReading(ctx context.Context, trainKey, runDate string) (*R
 	return r, err
 }
 
+// RunReading returns the newest reading of a run with its raw response, or
+// nil if there is none.
+func (s *Store) RunReading(ctx context.Context, trainKey, runDate string) (*Reading, error) {
+	var raw string
+	row := s.db.QueryRowContext(ctx, `SELECT `+readingColumns+`, raw FROM readings
+		WHERE train_key = ? AND run_date = ? ORDER BY id DESC LIMIT 1`, trainKey, runDate)
+	r, err := scanReading(scanWith(row, &raw))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if r != nil {
+		r.Raw = raw
+	}
+	return r, err
+}
+
+// RunDates lists the dates of a train's recorded runs, newest first.
+func (s *Store) RunDates(ctx context.Context, trainKey string, limit int) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT run_date FROM readings
+		WHERE train_key = ? ORDER BY run_date DESC LIMIT ?`, trainKey, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 // History returns the last reading of each of the train's most recent
 // runs, newest first.
 func (s *Store) History(ctx context.Context, trainKey string, runs int) ([]*Reading, error) {

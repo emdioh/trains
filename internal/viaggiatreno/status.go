@@ -42,6 +42,28 @@ type Stop struct {
 	ScheduledDepartureMs Int `json:"partenza_teorica"`
 	ActualDepartureMs    Int `json:"partenzaReale"`
 	DepartureDelay       Int `json:"ritardoPartenza"`
+
+	PlannedArrivalPlatform   String `json:"binarioProgrammatoArrivoDescrizione"`
+	ActualArrivalPlatform    String `json:"binarioEffettivoArrivoDescrizione"`
+	PlannedDeparturePlatform String `json:"binarioProgrammatoPartenzaDescrizione"`
+	ActualDeparturePlatform  String `json:"binarioEffettivoPartenzaDescrizione"`
+	// StopType is 3 when the train no longer stops here (cancelled).
+	StopType Int `json:"actualFermataType"`
+}
+
+// Cancelled reports whether the stop was cancelled for this run.
+func (s Stop) Cancelled() bool { return s.StopType == 3 }
+
+// Platform is the platform the train uses here: the actual one if known,
+// else the planned one, preferring departure over arrival.
+func (s Stop) Platform() string {
+	for _, p := range []String{s.ActualDeparturePlatform, s.ActualArrivalPlatform,
+		s.PlannedDeparturePlatform, s.PlannedArrivalPlatform} {
+		if v := strings.TrimSpace(string(p)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // ArrivalDelayMinutes is the train's delay arriving at the stop, and false

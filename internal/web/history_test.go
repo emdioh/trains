@@ -29,7 +29,8 @@ func rawRun(day time.Time, treviglio, bergamo *int) string {
 		return base + int64(*d)*60000
 	}
 	stops := []map[string]any{
-		{"stazione": "MILANO CENTRALE", "id": "S01700", "partenza_teorica": ms(6, 45), "partenzaReale": ms(6, 46)},
+		{"stazione": "MILANO CENTRALE", "id": "S01700", "partenza_teorica": ms(6, 45), "partenzaReale": ms(6, 46),
+			"binarioEffettivoPartenzaDescrizione": "14"},
 		{"stazione": "TREVIGLIO", "id": "S01708", "arrivo_teorico": ms(7, 5), "arrivoReale": actual(ms(7, 5), treviglio)},
 		{"stazione": "BERGAMO", "id": "S01529", "arrivo_teorico": ms(7, 50), "arrivoReale": actual(ms(7, 50), bergamo)},
 	}
@@ -138,6 +139,38 @@ func TestHistoryPage(t *testing.T) {
 		t.Error("status page has no link to the history")
 	}
 	if resp, _ := http.Get(e.srv.URL + "/history?key=nope"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown train: %s", resp.Status)
+	}
+}
+
+func TestStopsPage(t *testing.T) {
+	e := historyEnv(t)
+	// The newest run (today's, from newEnv) is the default; it has no raw data.
+	page := html.UnescapeString(get(t, e.srv.URL+"/stops?key=2034"))
+	if !strings.Contains(page, `<option value="2026-10-26" selected>`) || !strings.Contains(page, "No stop times were recorded") {
+		t.Error("stops page doesn't default to the most recent run")
+	}
+
+	body := get(t, e.srv.URL+"/stops?key=2034&date=2026-10-20")
+	if out := os.Getenv("WRITE_STOPS"); out != "" {
+		os.WriteFile(out, []byte(body), 0o644)
+	}
+	page = html.UnescapeString(body)
+	for _, want := range []string{
+		`<option value="2026-10-20" selected>`, "Milano Centrale", "Treviglio", "Bergamo",
+		"07:14", "+9", "sched. 07:05",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("stops page is missing %q", want)
+		}
+	}
+	if !strings.Contains(page, "08:02") || !strings.Contains(page, "+12") {
+		t.Error("Bergamo arrival 08:02 (+12) missing")
+	}
+	if !strings.Contains(get(t, e.srv.URL), `href="stops?key=2034"`) {
+		t.Error("status page has no link to the stops")
+	}
+	if resp, _ := http.Get(e.srv.URL + "/stops?key=nope"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown train: %s", resp.Status)
 	}
 }
