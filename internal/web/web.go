@@ -163,8 +163,10 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	wantsNotify := slices.ContainsFunc(trains, func(t Train) bool { return t.NotifyAt != "" })
 	s.render(w, http.StatusOK, "index.html", map[string]any{"Trains": trains, "Now": now.In(vt.Rome),
-		"Notify": len(s.Config().Notifiers) > 0, "Active": active, "Updated": updated,
+		"WantsNotify": wantsNotify,
+		"Notify":      len(s.Config().Notifiers) > 0, "Active": active, "Updated": updated,
 		"Reload": int(reloadEvery.Seconds()), "Version": s.Version,
 		"Notice": r.URL.Query().Get("notice")})
 }

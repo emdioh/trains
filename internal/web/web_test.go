@@ -132,11 +132,17 @@ func TestPage(t *testing.T) {
 	}
 }
 
+func TestPageWithNotifiers(t *testing.T) {
+	if page := get(t, newServer(t, "notifiers: [{type: ntfy, url: 'https://ntfy.sh/x'}]").URL); strings.Contains(page, "no notifier") {
+		t.Error("notifications-off note shown although a notifier is configured")
+	}
+}
+
 func TestPageWithoutNotifiers(t *testing.T) {
 	srv := newServer(t, "")
 	page := html.UnescapeString(get(t, srv.URL))
-	if !strings.Contains(page, "no notifier configured") {
-		t.Error("page doesn't say notifications are off")
+	if strings.Count(page, "no notifier is configured") != 1 {
+		t.Error("the page should say once, not per train, that notifications are off")
 	}
 }
 
