@@ -26,6 +26,8 @@ import (
 
 var version = "dev"
 
+const defaultConfig = "/etc/trains/config.yaml"
+
 // stopTimeout bounds a graceful shutdown; the OpenRC script waits a little
 // longer before killing the process.
 const stopTimeout = 8 * time.Second
@@ -39,7 +41,7 @@ Commands:
   version       print the version
 
 Flags:
-  -config PATH  configuration file (default trains.yaml)
+  -config PATH  configuration file (default /etc/trains/config.yaml)
 `
 
 func main() {
@@ -50,7 +52,7 @@ func main() {
 	cmd, args := os.Args[1], os.Args[2:]
 	flags := flag.NewFlagSet(cmd, flag.ExitOnError)
 	flags.Usage = func() { fmt.Fprint(os.Stderr, usage) }
-	configPath := flags.String("config", "trains.yaml", "configuration file")
+	configPath := flags.String("config", defaultConfig, "configuration file")
 	flags.Parse(args)
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))

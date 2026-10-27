@@ -1,4 +1,4 @@
-# Copy to trains.yaml (or /etc/trains/trains.yaml) and edit.
+# Copy to /etc/trains/config.yaml (the default location) and edit.
 # The file is re-read every minute: notifier changes apply without a
 # restart. listen and database need a restart.
 

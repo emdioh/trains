@@ -4,7 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/trains run -config /etc/trains/trains.yaml
+ExecStart=/usr/local/bin/trains run -config /etc/trains/config.yaml
 EnvironmentFile=-/etc/trains/env
 WorkingDirectory=/var/lib/trains
 User=trains

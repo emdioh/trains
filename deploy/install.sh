@@ -20,9 +20,14 @@ if ! id trains >/dev/null 2>&1; then
 fi
 install -d -o trains -g trains -m 0750 /var/lib/trains
 install -d -m 0755 /etc/trains
-if [ ! -f /etc/trains/trains.yaml ]; then
-	sed 's|^database: .*|database: /var/lib/trains/trains.db|' "$here/../config.example.yaml" > /etc/trains/trains.yaml
-	echo "Wrote /etc/trains/trains.yaml: edit it, then start the service."
+# The configuration used to be /etc/trains/trains.yaml.
+if [ -f /etc/trains/trains.yaml ] && [ ! -f /etc/trains/config.yaml ]; then
+	mv /etc/trains/trains.yaml /etc/trains/config.yaml
+	echo "Moved /etc/trains/trains.yaml to /etc/trains/config.yaml."
+fi
+if [ ! -f /etc/trains/config.yaml ]; then
+	sed 's|^database: .*|database: /var/lib/trains/trains.db|' "$here/../config.example.yaml" > /etc/trains/config.yaml
+	echo "Wrote /etc/trains/config.yaml: edit it, then start the service."
 fi
 if [ ! -f /etc/trains/env ]; then
 	printf 'TELEGRAM_TOKEN=\nTELEGRAM_CHAT_ID=\n' > /etc/trains/env
@@ -49,6 +54,6 @@ elif command -v rc-service >/dev/null; then
 		rc-service trains start
 	fi
 else
-	echo "No systemd or OpenRC found: start '/usr/local/bin/trains run -config /etc/trains/trains.yaml' yourself."
+	echo "No systemd or OpenRC found: start '/usr/local/bin/trains run' yourself."
 fi
 /usr/local/bin/trains version

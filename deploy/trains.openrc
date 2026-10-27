@@ -4,7 +4,7 @@
 name="trains"
 description="Italian train tracker"
 command="/usr/local/bin/trains"
-command_args="run -config /etc/trains/trains.yaml"
+command_args="run -config /etc/trains/config.yaml"
 command_user="trains:trains"
 command_background=true
 directory="/var/lib/trains"

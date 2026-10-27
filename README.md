@@ -73,11 +73,13 @@ Telegram, create a bot with @BotFather and get your chat id from
 ## Commands
 
 ```
-trains run [-config trains.yaml]          track trains and serve the page
-trains check [-config trains.yaml] 2034   print a train's live status
-trains test-notify [-config trains.yaml]  send a test message
+trains run [-config FILE]           track trains and serve the page
+trains check [-config FILE] 2034    print a train's live status
+trains test-notify [-config FILE]   send a test message
 trains version
 ```
+
+The configuration file defaults to `/etc/trains/config.yaml`.
 
 ## Building
 
@@ -98,14 +100,14 @@ config. On the
 server (an LXC container is fine), as root:
 
 ```sh
-v=v0.1.2 arch=amd64
+v=v0.2.5 arch=amd64
 wget https://github.com/emdioh/things/releases/download/trains-$v/trains-$v-linux-$arch.tar.gz
 tar -xzf trains-$v-linux-$arch.tar.gz
 deploy/install.sh trains-linux-$arch
 ```
 
 It installs `/usr/local/bin/trains`, creates a `trains` user and
-`/var/lib/trains` for the database, and writes `/etc/trains/trains.yaml` and
+`/var/lib/trains` for the database, and writes `/etc/trains/config.yaml` and
 `/etc/trains/env` (for the Telegram secrets) if they don't exist. It then
 installs and starts a systemd or OpenRC service, whichever the system uses.
 To update, do the same with a newer release: configuration and data are
