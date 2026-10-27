@@ -187,7 +187,7 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
-// Days is the set of weekdays a train is tracked on. It decodes a list of
+// Days is the set of weekdays a train notifies on. It decodes a list of
 // names ("mon", "tue", ...), ranges ("mon-fri"), "weekdays", "weekends" or
 // "daily". An empty set means every day.
 type Days map[time.Weekday]bool
@@ -251,6 +251,35 @@ func ParseDays(items []string) (Days, error) {
 
 // DayKeys are the day names in week order, Monday first.
 var DayKeys = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+
+// Describe is the days for people: "every day", "Mon–Fri", "Mon, Wed".
+func (d Days) Describe() string {
+	if d.String() == "" {
+		return "every day"
+	}
+	var parts []string
+	for i := 0; i < len(DayKeys); {
+		if !d[dayNames[DayKeys[i]]] {
+			i++
+			continue
+		}
+		j := i
+		for j+1 < len(DayKeys) && d[dayNames[DayKeys[j+1]]] {
+			j++
+		}
+		name := func(k string) string { return strings.ToUpper(k[:1]) + k[1:] }
+		switch {
+		case j-i >= 2:
+			parts = append(parts, name(DayKeys[i])+"–"+name(DayKeys[j]))
+		case j > i:
+			parts = append(parts, name(DayKeys[i]), name(DayKeys[j]))
+		default:
+			parts = append(parts, name(DayKeys[i]))
+		}
+		i = j + 1
+	}
+	return strings.Join(parts, ", ")
+}
 
 // String lists the days, Monday first: "mon,tue,wed". Every day is "".
 func (d Days) String() string {

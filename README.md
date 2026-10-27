@@ -59,7 +59,10 @@ stays in the database. Changes apply immediately.
   also type the departure station's name (or part of it, like
   `Milano Centrale`) or its code (`S01700`). A number shared by several
   trains isn't tracked until one is chosen; the status page says so.
-- **Days:** the weekdays to track it on.
+- **Notify on:** the weekdays to send notifications on. The train itself is
+  tracked every day it runs, so its history is complete; on days
+  ViaggiaTreno lists no run (weekends, holidays) the status page says "Not
+  running today".
 - **Notify at:** the time to send a message if the train is late or
   cancelled. Leave it empty for no notification.
 - **Late from:** minutes of delay that count as late. Defaults to

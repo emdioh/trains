@@ -114,3 +114,15 @@ func TestDaysString(t *testing.T) {
 		}
 	}
 }
+
+func TestDaysDescribe(t *testing.T) {
+	for in, want := range map[string]string{
+		"daily": "every day", "mon-fri": "Mon–Fri", "sat,sun": "Sat, Sun", "mon,wed": "Mon, Wed",
+		"mon-wed,fri": "Mon–Wed, Fri", "sat": "Sat",
+	} {
+		d, _ := ParseDays(strings.Split(in, ","))
+		if got := d.Describe(); got != want {
+			t.Errorf("%s: %q, want %q", in, got, want)
+		}
+	}
+}

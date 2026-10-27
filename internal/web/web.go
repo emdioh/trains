@@ -42,14 +42,15 @@ type Server struct {
 }
 
 type Train struct {
-	Key       string           `json:"key"`
-	Label     string           `json:"label,omitempty"`
-	Number    int              `json:"number"`
-	NotifyAt  string           `json:"notify_at,omitempty"`
-	LateAfter int              `json:"late_after"`
-	RunsToday bool             `json:"runs_today"`
-	Today     *store.Reading   `json:"today"`
-	History   []*store.Reading `json:"history"`
+	Key        string           `json:"key"`
+	Label      string           `json:"label,omitempty"`
+	Number     int              `json:"number"`
+	NotifyAt   string           `json:"notify_at,omitempty"`
+	LateAfter  int              `json:"late_after"`
+	Days       string           `json:"days"`        // when it notifies, e.g. "Mon–Fri"
+	NotRunning bool             `json:"not_running"` // no run today
+	Today      *store.Reading   `json:"today"`
+	History    []*store.Reading `json:"history"`
 	// Problem is today's latest fetch error when there is no reading yet,
 	// e.g. an ambiguous train number.
 	Problem string `json:"problem,omitempty"`
@@ -94,7 +95,7 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 	for _, c := range list {
 		c = cfg.WithDefaults(c)
 		t := Train{Key: c.Key(), Label: c.Label, Number: c.Number, NotifyAt: c.NotifyAt,
-			LateAfter: c.LateAfter, RunsToday: c.Days.Has(now.Weekday())}
+			LateAfter: c.LateAfter, Days: c.Days.Describe()}
 		history, err := s.Store.History(ctx, c.Key(), historyRuns+1)
 		if err != nil {
 			return nil, err
@@ -103,9 +104,12 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 			t.Today, history = history[0], history[1:]
 		}
 		t.History = history[:min(len(history), historyRuns)]
-		if t.Today == nil && t.RunsToday {
+		if t.Today == nil {
 			if t.Problem, _, err = s.Store.LastFetchError(ctx, c.Key(), today); err != nil {
 				return nil, err
+			}
+			if strings.HasPrefix(t.Problem, tracker.ErrNotRunning.Error()) {
+				t.NotRunning, t.Problem = true, ""
 			}
 		}
 		out = append(out, t)

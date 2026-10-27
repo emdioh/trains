@@ -45,10 +45,11 @@
     </label>
 
     <fieldset>
-      <legend>Days</legend>
+      <legend>Notify on</legend>
       <div class="days">
         {{range .DayKeys}}<label><input type="checkbox" name="days" value="{{.}}" {{if index $.Days .}}checked{{end}}> {{$.DayLabel .}}</label>{{end}}
       </div>
+      <div class="muted">The train is tracked every day it runs; these days only decide when to notify.</div>
     </fieldset>
 
     <label class="field"><span>Notify at <span class="muted">(optional)</span></span>

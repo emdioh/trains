@@ -202,11 +202,24 @@ func TestPollsOnlyAroundTheJourney(t *testing.T) {
 	}
 }
 
-func TestSkipsOtherDays(t *testing.T) {
+func TestTracksEveryDayNotifiesOnItsDays(t *testing.T) {
 	h := newHarness(t, `  - {number: 2034, days: weekends, notify_at: "07:20"}`, running(30))
+	h.run("06:00", "09:00") // a Monday
+	if h.src.calls == 0 {
+		t.Error("not tracked on a day it doesn't notify")
+	}
+	if msgs := h.messages(); len(msgs) != 0 {
+		t.Errorf("notified on a Monday: %q", msgs)
+	}
+}
+
+func TestNotRunningToday(t *testing.T) {
+	h := newHarness(t, `  - {number: 2034}`, running(0))
+	h.src.runs = []vt.Run{} // ViaggiaTreno lists no run today
 	h.run("06:00", "09:00")
-	if h.src.calls != 0 || len(h.messages()) != 0 {
-		t.Errorf("Monday: %d calls, %d messages; want none", h.src.calls, len(h.messages()))
+	msg, _, _ := h.store.LastFetchError(context.Background(), "2034", "2026-10-26")
+	if !strings.HasPrefix(msg, "not running today") {
+		t.Errorf("fetch error = %q, want it to start with 'not running today'", msg)
 	}
 }
 

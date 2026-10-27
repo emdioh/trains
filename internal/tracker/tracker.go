@@ -33,6 +33,9 @@ const (
 	refreshMinGap = 20 * time.Second
 )
 
+// ErrNotRunning means the train has no run today, e.g. on a weekend.
+var ErrNotRunning = errors.New("not running today")
+
 type Source interface {
 	FindRuns(ctx context.Context, number int) ([]vt.Run, error)
 	Status(ctx context.Context, run vt.Run) (*vt.Status, []byte, error)
@@ -178,11 +181,9 @@ func (t *Tracker) reload() {
 }
 
 // tickTrain polls one train if it is due and sends its notification when
-// it is time. It reports whether it fetched the train.
+// it is time. It reports whether it fetched the train. Trains are tracked
+// every day they run; their days only say when to notify.
 func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train config.Train, notifiers []notify.Notifier, now time.Time, force bool) bool {
-	if !train.Days.Has(now.Weekday()) {
-		return false
-	}
 	key, today := train.Key(), now.Format(store.DateLayout)
 	rs := t.runs[key]
 	if rs == nil || rs.date != today {
@@ -198,7 +199,8 @@ func (t *Tracker) tickTrain(ctx context.Context, cfg *config.Config, train confi
 	}
 
 	notifyAt, hasNotify := train.NotifyTime(now)
-	if hasNotify && !rs.checked && !now.Before(notifyAt) && !now.After(notifyAt.Add(notifyGrace)) {
+	if hasNotify && train.Days.Has(now.Weekday()) && !rs.checked &&
+		!now.Before(notifyAt) && !now.After(notifyAt.Add(notifyGrace)) {
 		rs.watching = true
 	}
 	// While the notification waits for a reading, retry every minute.
@@ -276,11 +278,17 @@ func (t *Tracker) fetch(ctx context.Context, train config.Train, rs *runState, n
 	rs.notFound = false
 	if rs.run == nil {
 		runs, err := t.Source.FindRuns(ctx, train.Number)
+		if errors.Is(err, vt.ErrNotFound) {
+			rs.notFound = true
+			return fmt.Errorf("%w: ViaggiaTreno doesn't list train %d today", ErrNotRunning, train.Number)
+		}
 		if err != nil {
-			rs.notFound = errors.Is(err, vt.ErrNotFound)
 			return fmt.Errorf("finding today's run: %w", err)
 		}
-		if rs.run, err = PickRun(runs, train.Origin, now); err != nil {
+		if rs.run, err = PickRun(runs, train.Origin, now); errors.Is(err, vt.ErrNotFound) {
+			rs.notFound = true
+			return fmt.Errorf("%w: ViaggiaTreno lists no run of train %d for today", ErrNotRunning, train.Number)
+		} else if err != nil {
 			// Retrying soon won't help: a config change starts a new run state.
 			rs.notFound = true
 			return err

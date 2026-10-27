@@ -97,7 +97,7 @@ func (f *form) train() (config.Train, error) {
 		}
 	}
 	if len(days) == 0 {
-		return t, errors.New("choose at least one day")
+		return t, errors.New("choose at least one day to notify on")
 	}
 	if t.Days, err = config.ParseDays(days); err != nil {
 		return t, err

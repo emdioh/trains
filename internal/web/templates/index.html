@@ -26,7 +26,7 @@
       {{if .Today}}
       <span class="delay {{level .Today .LateAfter}}">{{delay .Today}}</span>
       {{else}}
-      <span class="delay none">{{if .RunsToday}}No data yet{{else}}Not today{{end}}</span>
+      <span class="delay none">{{if .NotRunning}}Not running today{{else}}No data yet{{end}}</span>
       {{end}}
     </div>
     {{with .Problem}}<div class="problem">{{.}}</div>{{end}}
@@ -34,7 +34,7 @@
     <div class="where">{{position .}}{{if .Partial}} · partly cancelled{{end}}</div>
     <div class="muted">Updated {{ago .FetchedAt}}</div>
     {{end}}
-    {{if .NotifyAt}}<div class="muted">{{if $.Notify}}Notifies at {{.NotifyAt}} if {{.LateAfter}}+ min late{{else}}Would notify at {{.NotifyAt}}, but no notifier is configured{{end}}</div>{{end}}
+    {{if .NotifyAt}}<div class="muted">{{if $.Notify}}Notifies {{.Days}} at {{.NotifyAt}} if {{.LateAfter}}+ min late{{else}}Would notify {{.Days}} at {{.NotifyAt}}, but no notifier is configured{{end}}</div>{{end}}
     {{if .History}}
     {{$late := .LateAfter}}
     <div class="history">
