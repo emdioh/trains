@@ -42,15 +42,17 @@ type Server struct {
 }
 
 type Train struct {
-	Key        string           `json:"key"`
-	Label      string           `json:"label,omitempty"`
-	Number     int              `json:"number"`
-	NotifyAt   string           `json:"notify_at,omitempty"`
-	LateAfter  int              `json:"late_after"`
-	Days       string           `json:"days"`        // when it notifies, e.g. "Mon–Fri"
-	NotRunning bool             `json:"not_running"` // no run today
-	Today      *store.Reading   `json:"today"`
-	History    []*store.Reading `json:"history"`
+	Key       string `json:"key"`
+	Label     string `json:"label,omitempty"`
+	Number    int    `json:"number"`
+	NotifyAt  string `json:"notify_at,omitempty"`
+	LateAfter int    `json:"late_after"`
+	Days      string `json:"days"` // when it notifies, e.g. "Mon–Fri"
+	// Week has one entry per day, Monday first: whether it notifies then,
+	// and which day is today.
+	Week    []weekDay        `json:"-"`
+	Today   *store.Reading   `json:"today"`
+	History []*store.Reading `json:"history"`
 	// Problem is today's latest fetch error when there is no reading yet,
 	// e.g. an ambiguous train number.
 	Problem string `json:"problem,omitempty"`
@@ -102,7 +104,7 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 	for _, c := range list {
 		c = cfg.WithDefaults(c)
 		t := Train{Key: c.Key(), Label: c.Label, Number: c.Number, NotifyAt: c.NotifyAt,
-			LateAfter: c.LateAfter, Days: c.Days.Describe()}
+			LateAfter: c.LateAfter, Days: c.Days.Describe(), Week: week(c.Days, now.Weekday())}
 		history, err := s.Store.History(ctx, c.Key(), historyRuns+1)
 		if err != nil {
 			return nil, err
@@ -115,8 +117,9 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 			if t.Problem, _, err = s.Store.LastFetchError(ctx, c.Key(), today); err != nil {
 				return nil, err
 			}
+			// No run listed today isn't a problem worth a warning.
 			if strings.HasPrefix(t.Problem, tracker.ErrNotRunning.Error()) {
-				t.NotRunning, t.Problem = true, ""
+				t.Problem = ""
 			}
 		}
 		out = append(out, t)
@@ -197,6 +200,20 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	s.Log.Error("serving page", "err", err)
 	http.Error(w, "internal error", http.StatusInternalServerError)
+}
+
+type weekDay struct {
+	On    bool
+	Today bool
+}
+
+func week(days config.Days, today time.Weekday) []weekDay {
+	out := make([]weekDay, 7)
+	for i := range out {
+		wd := time.Weekday((i + 1) % 7) // Monday first
+		out[i] = weekDay{On: days.Has(wd), Today: wd == today}
+	}
+	return out
 }
 
 func hhmm(t time.Time) string {

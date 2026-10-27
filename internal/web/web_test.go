@@ -123,7 +123,7 @@ func TestPage(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Morning commute · REG 2034", "+12 min", "Last seen Treviglio at 07:18",
-		"Milano Centrale 06:45 → Bergamo 07:50", "Updated 3 min ago", "Notifies every day at 07:20 if 5+ min late",
+		"Milano Centrale 06:45 → Bergamo 07:50", "Updated 3 min ago", "07:20 · late from 5 min", `aria-label="Notifies every day"`,
 		"Fri 23 Oct On time", "Wed 21 Oct Cancelled", "No data yet", "trains v9.9.9",
 	} {
 		if !strings.Contains(page, want) {
@@ -135,7 +135,7 @@ func TestPage(t *testing.T) {
 func TestPageWithoutNotifiers(t *testing.T) {
 	srv := newServer(t, "")
 	page := html.UnescapeString(get(t, srv.URL))
-	if !strings.Contains(page, "Would notify every day at 07:20, but no notifier is configured") {
+	if !strings.Contains(page, "no notifier configured") {
 		t.Error("page doesn't say notifications are off")
 	}
 }
@@ -317,7 +317,27 @@ func TestNotRunningToday(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := html.UnescapeString(get(t, e.srv.URL))
-	if !strings.Contains(page, "Not running today") || strings.Contains(page, "doesn't list train 9544") {
-		t.Error("a train without a run today should read 'Not running today', not show a warning")
+	if strings.Contains(page, "doesn't list train 9544") {
+		t.Error("a train without a run today shows a warning")
+	}
+}
+
+func TestWeek(t *testing.T) {
+	weekdays, _ := config.ParseDays([]string{"mon-fri"})
+	var got string
+	for _, d := range week(weekdays, time.Saturday) {
+		switch {
+		case d.On && d.Today:
+			got += "T"
+		case d.Today:
+			got += "t"
+		case d.On:
+			got += "x"
+		default:
+			got += "."
+		}
+	}
+	if got != "xxxxxt." {
+		t.Errorf("week = %s, want xxxxxt.", got)
 	}
 }

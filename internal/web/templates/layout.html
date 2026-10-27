@@ -26,7 +26,8 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
   .top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
   .name { font-weight: 600; }
-  .delay { font-weight: 700; font-size: 1.1rem; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .top > div { min-width: 0; }
+  .delay { flex-shrink: 0; font-weight: 700; font-size: 1.1rem; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
   .ok { color: var(--ok); background: var(--ok-bg); }
   .late { color: var(--late); background: var(--late-bg); }
   .bad { color: var(--bad); background: var(--bad-bg); }
@@ -38,10 +39,17 @@
   .empty { text-align: center; padding: 32px 16px; }
   code { font-size: .875rem; }
   a { color: inherit; }
-  .edit { font: inherit; font-size: .875rem; color: var(--muted); text-decoration: none; margin-left: 8px;
+  .links { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-top: 8px; }
+  .edit { font: inherit; font-size: .875rem; color: var(--muted); text-decoration: none;
     background: none; border: 0; padding: 0; cursor: pointer; }
   form.inline { display: inline; }
   .notice { margin: -8px 0 12px; }
+  .notify { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+  .week { display: inline-flex; gap: 3px; }
+  .week i { width: 8px; height: 8px; border-radius: 2px; border: 1.5px solid var(--muted); }
+  .week i.on { background: var(--muted); }
+  .week i.today { border-color: var(--text); }
+  .week i.on.today { background: var(--text); }
   .footer { margin-top: 32px; text-align: center; }
   .edit:hover { color: var(--text); text-decoration: underline; }
   .button { display: inline-block; font: inherit; font-weight: 600; padding: 8px 16px; border-radius: 8px;
