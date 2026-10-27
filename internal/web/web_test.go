@@ -341,3 +341,22 @@ func TestWeek(t *testing.T) {
 		t.Errorf("week = %s, want xxxxxt.", got)
 	}
 }
+
+func TestRunningFirst(t *testing.T) {
+	at := func(h int) time.Time { return time.Date(2026, 10, 26, h, 0, 0, 0, vt.Rome) }
+	trains := []Train{
+		{Key: "arrived", Today: &store.Reading{State: "arrived", ScheduledDeparture: at(6)}},
+		{Key: "none"},
+		{Key: "late-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(8)}},
+		{Key: "waiting", Today: &store.Reading{State: "not_departed", ScheduledDeparture: at(9)}},
+		{Key: "early-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(7)}},
+	}
+	runningFirst(trains)
+	var got []string
+	for _, tr := range trains {
+		got = append(got, tr.Key)
+	}
+	if want := "early-start late-start arrived none waiting"; strings.Join(got, " ") != want {
+		t.Errorf("order = %s, want %s", strings.Join(got, " "), want)
+	}
+}

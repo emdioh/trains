@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -148,6 +149,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	runningFirst(trains)
 	// The page reloads itself only while a train is running; the rest of
 	// the day nothing changes until the next departure.
 	now := s.Now()
@@ -215,6 +217,24 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	s.Log.Error("serving page", "err", err)
 	http.Error(w, "internal error", http.StatusInternalServerError)
+}
+
+// runningFirst moves the trains running right now (departed, not yet
+// arrived or cancelled) to the top, earliest departure first; the others
+// keep their order.
+func runningFirst(trains []Train) {
+	running := func(t Train) bool { return t.Today != nil && vt.State(t.Today.State) == vt.Running }
+	slices.SortStableFunc(trains, func(a, b Train) int {
+		switch ra, rb := running(a), running(b); {
+		case ra && rb:
+			return a.Today.ScheduledDeparture.Compare(b.Today.ScheduledDeparture)
+		case ra:
+			return -1
+		case rb:
+			return 1
+		}
+		return 0
+	})
 }
 
 // boardingPlatform reads the departure platform at the boarding stop (the
