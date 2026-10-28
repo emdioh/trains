@@ -124,10 +124,16 @@ func TestPage(t *testing.T) {
 	for _, want := range []string{
 		"Morning commute · REG 2034", "+12 min", "Last seen Treviglio at 07:18",
 		"Milano Centrale 06:45 → Bergamo 07:50", "Updated 3 min ago", "07:20 · late from 5 min", `aria-label="Notifies every day"`,
-		"Fri 23 Oct On time", "Wed 21 Oct Cancelled", "No data yet", "trains v9.9.9",
+		"No data yet", "trains v9.9.9",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page is missing %q", want)
+		}
+	}
+	// Past runs are on the history page, not under each train.
+	for _, unwanted := range []string{"Fri 23 Oct", "Wed 21 Oct"} {
+		if strings.Contains(page, unwanted) {
+			t.Errorf("page shows past run %q", unwanted)
 		}
 	}
 }

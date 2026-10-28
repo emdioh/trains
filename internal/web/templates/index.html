@@ -41,12 +41,6 @@
       <span class="week" role="img" aria-label="Notifies {{.Days}}">{{range .Week}}<i class="{{if .On}}on{{end}}{{if .Today}} today{{end}}"></i>{{end}}</span>
       {{.NotifyAt}} · late from {{.LateAfter}} min</div>{{end}}
     <div class="links"><a class="edit" href="stops?key={{.Key}}">Stops</a><a class="edit" href="history?key={{.Key}}">History</a><a class="edit" href="edit?key={{.Key}}">Edit</a><form class="inline" method="post" action="delete" onsubmit="return confirm('Stop tracking train {{.Number}}? Its history is kept.')"><input type="hidden" name="key" value="{{.Key}}"><button class="edit">Delete</button></form></div>
-    {{if .History}}
-    {{$late := .LateAfter}}
-    <div class="history">
-      {{range .History}}<span class="chip {{level . $late}}" title="{{position .}}">{{day .RunDate}} {{delay .}}</span>{{end}}
-    </div>
-    {{end}}
   </section>
   {{else}}
   <section class="card empty">

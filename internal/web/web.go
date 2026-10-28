@@ -73,7 +73,6 @@ func (s *Server) Handler() http.Handler {
 		"position": tracker.Position,
 		"delay":    delayText,
 		"level":    level,
-		"day":      day,
 		"minutes":  minutes,
 		"delaySign": func(m int) string {
 			if m > 0 {
