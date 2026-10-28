@@ -376,3 +376,47 @@ func TestByNextDeparture(t *testing.T) {
 		t.Errorf("order = %s, want %s", strings.Join(got, " "), want)
 	}
 }
+
+func TestByNextDepartureFromBoardingStop(t *testing.T) {
+	at := func(d, h, m int) time.Time { return time.Date(2026, 10, d, h, m, 0, 0, vt.Rome) }
+	trains := []Train{
+		// Left its first station at 08:00, reaches the boarding stop at 09:30.
+		{Key: "coming-0930", Today: &store.Reading{State: "running", ScheduledDeparture: at(26, 8, 0)},
+			boardOffset: 90 * time.Minute, waiting: true},
+		{Key: "gone-0845", Today: &store.Reading{State: "running", ScheduledDeparture: at(26, 8, 15)},
+			boardOffset: 30 * time.Minute},
+		{Key: "waiting-0915", Today: &store.Reading{State: "not_departed", ScheduledDeparture: at(26, 9, 15)}},
+		// Usually leaves at 05:00, reaching the boarding stop at 09:45.
+		{Key: "unfetched-0945", History: []*store.Reading{{State: "arrived", ScheduledDeparture: at(25, 5, 0)}},
+			boardOffset: 285 * time.Minute},
+	}
+	byNextDeparture(trains, at(26, 9, 0))
+	var got []string
+	for _, tr := range trains {
+		got = append(got, tr.Key)
+	}
+	if want := "gone-0845 waiting-0915 coming-0930 unfetched-0945"; strings.Join(got, " ") != want {
+		t.Errorf("order = %s, want %s", strings.Join(got, " "), want)
+	}
+}
+
+func TestBoardingTime(t *testing.T) {
+	ms := func(h, m int) vt.Int { return vt.Int(time.Date(2026, 10, 26, h, m, 0, 0, vt.Rome).UnixMilli()) }
+	raw, _ := json.Marshal(vt.Status{Stops: []vt.Stop{
+		{ID: "S01", ScheduledDepartureMs: ms(8, 0), ActualDepartureMs: ms(8, 2)},
+		{ID: "S02", ScheduledDepartureMs: ms(8, 40), ActualDepartureMs: ms(8, 43)},
+		{ID: "S03", ScheduledMs: ms(9, 30)},
+	}})
+	for _, c := range []struct {
+		board   string
+		offset  time.Duration
+		waiting bool
+	}{
+		{"", 0, false}, {"S01", 0, false}, {"S02", 40 * time.Minute, false},
+		{"S03", 90 * time.Minute, true}, {"S99", 0, false},
+	} {
+		if offset, waiting := boardingTime(string(raw), c.board); offset != c.offset || waiting != c.waiting {
+			t.Errorf("boardingTime(%q) = %v, %v; want %v, %v", c.board, offset, waiting, c.offset, c.waiting)
+		}
+	}
+}
