@@ -354,21 +354,25 @@ func TestWeek(t *testing.T) {
 	}
 }
 
-func TestRunningFirst(t *testing.T) {
-	at := func(h int) time.Time { return time.Date(2026, 10, 26, h, 0, 0, 0, vt.Rome) }
+func TestByNextDeparture(t *testing.T) {
+	at := func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, vt.Rome) }
 	trains := []Train{
-		{Key: "arrived", Today: &store.Reading{State: "arrived", ScheduledDeparture: at(6)}},
+		{Key: "arrived-6", Today: &store.Reading{State: "arrived", ScheduledDeparture: at(26, 6)}},
 		{Key: "none"},
-		{Key: "late-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(8)}},
-		{Key: "waiting", Today: &store.Reading{State: "not_departed", ScheduledDeparture: at(9)}},
-		{Key: "early-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(7)}},
+		{Key: "late-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(26, 8)}},
+		{Key: "waiting-17", Today: &store.Reading{State: "not_departed", ScheduledDeparture: at(26, 17)}},
+		{Key: "unfetched-18", History: []*store.Reading{{State: "arrived", ScheduledDeparture: at(25, 18)}}},
+		{Key: "unfetched-5", History: []*store.Reading{{State: "arrived", ScheduledDeparture: at(25, 5)}}},
+		{Key: "early-start", Today: &store.Reading{State: "running", ScheduledDeparture: at(26, 7)}},
 	}
-	runningFirst(trains)
+	byNextDeparture(trains, at(26, 9))
 	var got []string
 	for _, tr := range trains {
 		got = append(got, tr.Key)
 	}
-	if want := "early-start late-start arrived none waiting"; strings.Join(got, " ") != want {
+	// After the running trains: 17:00 and 18:00 today, then 05:00 and
+	// 06:00 tomorrow.
+	if want := "early-start late-start waiting-17 unfetched-18 unfetched-5 arrived-6 none"; strings.Join(got, " ") != want {
 		t.Errorf("order = %s, want %s", strings.Join(got, " "), want)
 	}
 }
