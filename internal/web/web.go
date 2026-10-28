@@ -63,6 +63,11 @@ type Train struct {
 	// Problem is today's latest fetch error when there is no reading yet,
 	// e.g. an ambiguous train number.
 	Problem string `json:"problem,omitempty"`
+	// boardOffset is how long after leaving its first station the train
+	// leaves the boarding stop, and waiting is whether it is yet to leave
+	// it today; both are known only for a boarding stop past the first.
+	boardOffset time.Duration
+	waiting     bool
 }
 
 func (s *Server) Handler() http.Handler {
@@ -126,6 +131,16 @@ func (s *Server) trains(ctx context.Context) ([]Train, error) {
 			}
 			if rd != nil {
 				t.Platform, t.PlatformNote, t.BoardAt = boardingPlatform(rd.Raw, c.Board)
+				t.boardOffset, t.waiting = boardingTime(rd.Raw, c.Board)
+			}
+		} else if c.Board != "" && len(history) > 0 {
+			// Not running yet today: the last run says when it gets there.
+			rd, err := s.Store.RunReading(ctx, c.Key(), history[0].RunDate)
+			if err != nil {
+				return nil, err
+			}
+			if rd != nil {
+				t.boardOffset, _ = boardingTime(rd.Raw, c.Board)
 			}
 		}
 		if t.Today == nil {
@@ -220,17 +235,19 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 	http.Error(w, "internal error", http.StatusInternalServerError)
 }
 
-// byNextDeparture puts the trains running right now (departed, not yet
-// arrived or cancelled) at the top, earliest departure first, then the
-// others by when they next leave: today if they haven't yet, otherwise
-// tomorrow at the time of their last known run. Trains never seen running
-// come last, in their order.
+// byNextDeparture puts the trains on their way right now (gone from the
+// boarding stop, not yet arrived or cancelled) at the top, earliest first,
+// then the others by when they next leave the boarding stop: today if they
+// haven't yet, otherwise tomorrow at the time of their last known run.
+// Trains never seen running come last, in their order.
 func byNextDeparture(trains []Train, now time.Time) {
 	now = now.In(vt.Rome)
-	running := func(t Train) bool { return t.Today != nil && vt.State(t.Today.State) == vt.Running }
+	gone := func(t Train) bool {
+		return t.Today != nil && vt.State(t.Today.State) == vt.Running && !t.waiting
+	}
 	next := func(t Train) time.Time {
-		if t.Today != nil && vt.State(t.Today.State) == vt.NotDeparted {
-			return t.Today.ScheduledDeparture
+		if t.Today != nil && (vt.State(t.Today.State) == vt.NotDeparted || t.waiting) {
+			return t.Today.ScheduledDeparture.Add(t.boardOffset)
 		}
 		var dep time.Time
 		if t.Today != nil {
@@ -241,7 +258,7 @@ func byNextDeparture(trains []Train, now time.Time) {
 		if dep.IsZero() {
 			return dep
 		}
-		dep = dep.In(vt.Rome)
+		dep = dep.Add(t.boardOffset).In(vt.Rome)
 		at := time.Date(now.Year(), now.Month(), now.Day(), dep.Hour(), dep.Minute(), 0, 0, vt.Rome)
 		if t.Today != nil || at.Before(now) {
 			at = at.AddDate(0, 0, 1)
@@ -249,12 +266,12 @@ func byNextDeparture(trains []Train, now time.Time) {
 		return at
 	}
 	slices.SortStableFunc(trains, func(a, b Train) int {
-		switch ra, rb := running(a), running(b); {
-		case ra && rb:
-			return a.Today.ScheduledDeparture.Compare(b.Today.ScheduledDeparture)
-		case ra:
+		switch ga, gb := gone(a), gone(b); {
+		case ga && gb:
+			return a.Today.ScheduledDeparture.Add(a.boardOffset).Compare(b.Today.ScheduledDeparture.Add(b.boardOffset))
+		case ga:
 			return -1
-		case rb:
+		case gb:
 			return 1
 		}
 		switch na, nb := next(a), next(b); {
@@ -268,6 +285,35 @@ func byNextDeparture(trains []Train, now time.Time) {
 			return na.Compare(nb)
 		}
 	})
+}
+
+// boardingTime reads, from a raw status, how long after leaving its first
+// station the train is due to leave the boarding stop board, and whether
+// it has yet to leave it. Both are zero when board is empty, the first
+// station, or not among the stops.
+func boardingTime(raw, board string) (offset time.Duration, waiting bool) {
+	var st vt.Status
+	if board == "" || json.Unmarshal([]byte(raw), &st) != nil || len(st.Stops) < 2 {
+		return 0, false
+	}
+	first := st.Stops[0]
+	for _, s := range st.Stops[1:] {
+		if string(s.ID) != board {
+			continue
+		}
+		from, to := first.ScheduledDepartureMs, s.ScheduledDepartureMs
+		if from == 0 {
+			from = first.ScheduledMs
+		}
+		if to == 0 {
+			to = s.ScheduledMs
+		}
+		if from == 0 || to == 0 {
+			return 0, false
+		}
+		return time.Duration(to-from) * time.Millisecond, s.ActualDepartureMs == 0 && s.ActualMs == 0
+	}
+	return 0, false
 }
 
 // boardingPlatform reads the departure platform at the boarding stop (the

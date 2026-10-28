@@ -24,7 +24,8 @@ Trenord and the rest.
   sent instead. While the service is running, silence means on time.
 - The status page (`listen`, default `:8080`) shows today's delay, last
   position and schedule for each train, and when the data was last updated:
-  the trains running right now first, then the rest by when they next leave.
+  the trains that have left your boarding stop and are still running first,
+  then the rest by when they next leave it.
   **History** next to each train shows its past runs. It reloads itself
   every 5 minutes while a train is running, and not at all otherwise. **Refresh now** fetches every train
   running today straight away. The same data
@@ -69,7 +70,7 @@ stays in the database. Changes apply immediately.
   `Milano Centrale`) or its code (`S01700`). A number shared by several
   trains isn't tracked until one is chosen; the status page says so.
 - **Board at:** the stop you get on at, the starting station by default.
-  When ViaggiaTreno knows its departure platform, the status page shows it,
+  The status page sorts trains by when they leave this stop. When ViaggiaTreno knows its departure platform, the status page shows it,
   marked "planned" until confirmed and noting any change (e.g. "Platform 5
   · changed from 3"). The other stops can be picked once a run has been
   recorded.
