@@ -148,7 +148,14 @@ kept.
 
 From a git clone of this repository, `deploy/install-release.sh` does all of
 that in one step for the version in `VERSION`, checking the download
-against `SHA256SUMS`. The dashboard project's deploy step uses it.
+against `SHA256SUMS` and removing it afterwards. The dashboard project's
+deploy step uses it. Give it a version to install that one instead, or
+`latest` for the newest release; with `latest` the script works on its
+own, without a clone:
+
+```sh
+wget -qO- https://raw.githubusercontent.com/emdioh/trains/master/deploy/install-release.sh | sh -s latest
+```
 
 ## Releasing
 
