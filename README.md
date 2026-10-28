@@ -127,14 +127,14 @@ make dist           # dist/trains-linux-{amd64,arm64}
 
 ## Installing on a server
 
-Each [release](https://github.com/emdioh/things/releases) has a tarball and
+Each [release](https://github.com/emdioh/trains/releases) has a tarball and
 a zip per architecture, both holding the binary, `deploy/` and the example
 config. On the
 server (an LXC container is fine), as root:
 
 ```sh
 v=v0.2.5 arch=amd64
-wget https://github.com/emdioh/things/releases/download/trains-$v/trains-$v-linux-$arch.tar.gz
+wget https://github.com/emdioh/trains/releases/download/trains-$v/trains-$v-linux-$arch.tar.gz
 tar -xzf trains-$v-linux-$arch.tar.gz
 deploy/install.sh trains-linux-$arch
 ```
@@ -146,17 +146,17 @@ installs and starts a systemd or OpenRC service, whichever the system uses.
 To update, do the same with a newer release: configuration and data are
 kept.
 
-From a git clone of this branch, `deploy/install-release.sh` does all of
+From a git clone of this repository, `deploy/install-release.sh` does all of
 that in one step for the version in `VERSION`, checking the download
 against `SHA256SUMS`. The dashboard project's deploy step uses it.
 
 ## Releasing
 
-Bump `VERSION` and push it to the `trains` branch. The `trains release`
+Bump `VERSION` and push it to `master`. The `trains release`
 workflow then tests and builds the binaries, and publishes them as the
 GitHub release `trains-<version>`, creating the tag. Pushing a
-`trains-v<version>` tag yourself does the same. The `trains-` prefix keeps
-the tags apart from other projects in this repository.
+`trains-v<version>` tag yourself does the same. The `trains-` prefix is
+kept from when this project shared a repository with others.
 
 ## Caveats
 

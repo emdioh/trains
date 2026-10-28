@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs or updates trains from the GitHub release named in VERSION (or
 # the version given), for this machine's architecture. Run as root from a
-# clone of the trains branch, e.g. as the dashboard's deploy step:
+# clone of this repository, e.g. as the dashboard's deploy step:
 #   sh deploy/install-release.sh [v0.1.0]
 set -eu
 
@@ -12,7 +12,7 @@ case $(uname -m) in
 	aarch64 | arm64) arch=arm64 ;;
 	*) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
-url=https://github.com/emdioh/things/releases/download/trains-$version
+url=https://github.com/emdioh/trains/releases/download/trains-$version
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

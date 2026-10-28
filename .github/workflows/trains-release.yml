@@ -1,11 +1,11 @@
 name: trains release
 
-# A release is made when VERSION changes on the trains branch, or when a
-# trains-v* tag is pushed. Tags carry the project name because several
-# projects share this repository: trains-v0.1.0 is version v0.1.0.
+# A release is made when VERSION changes on master, or when a trains-v*
+# tag is pushed. Tags carry the project name, kept from when trains shared
+# a repository with other projects: trains-v0.1.0 is version v0.1.0.
 on:
   push:
-    branches: [trains]
+    branches: [master]
     paths: [VERSION]
     tags: ["trains-v*"]
 
