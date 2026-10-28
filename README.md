@@ -23,10 +23,10 @@ Trenord and the rest.
   reached for 30 minutes after that time, a "status unknown" message is
   sent instead. While the service is running, silence means on time.
 - The status page (`listen`, default `:8080`) shows today's delay, last
-  position and schedule for each train (those running right now first), and
-  when the data was last updated. **History** next to each train shows its
-  past runs. It reloads itself every 5 minutes while a train is
-  running, and not at all otherwise. **Refresh now** fetches every train
+  position and schedule for each train, and when the data was last updated:
+  the trains running right now first, then the rest by when they next leave.
+  **History** next to each train shows its past runs. It reloads itself
+  every 5 minutes while a train is running, and not at all otherwise. **Refresh now** fetches every train
   running today straight away. The same data
   is at `/api/trains` as JSON.
 

@@ -148,7 +148,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	runningFirst(trains)
+	byNextDeparture(trains, s.Now())
 	// The page reloads itself only while a train is running; the rest of
 	// the day nothing changes until the next departure.
 	now := s.Now()
@@ -220,11 +220,34 @@ func (s *Server) fail(w http.ResponseWriter, err error) {
 	http.Error(w, "internal error", http.StatusInternalServerError)
 }
 
-// runningFirst moves the trains running right now (departed, not yet
-// arrived or cancelled) to the top, earliest departure first; the others
-// keep their order.
-func runningFirst(trains []Train) {
+// byNextDeparture puts the trains running right now (departed, not yet
+// arrived or cancelled) at the top, earliest departure first, then the
+// others by when they next leave: today if they haven't yet, otherwise
+// tomorrow at the time of their last known run. Trains never seen running
+// come last, in their order.
+func byNextDeparture(trains []Train, now time.Time) {
+	now = now.In(vt.Rome)
 	running := func(t Train) bool { return t.Today != nil && vt.State(t.Today.State) == vt.Running }
+	next := func(t Train) time.Time {
+		if t.Today != nil && vt.State(t.Today.State) == vt.NotDeparted {
+			return t.Today.ScheduledDeparture
+		}
+		var dep time.Time
+		if t.Today != nil {
+			dep = t.Today.ScheduledDeparture
+		} else if len(t.History) > 0 {
+			dep = t.History[0].ScheduledDeparture
+		}
+		if dep.IsZero() {
+			return dep
+		}
+		dep = dep.In(vt.Rome)
+		at := time.Date(now.Year(), now.Month(), now.Day(), dep.Hour(), dep.Minute(), 0, 0, vt.Rome)
+		if t.Today != nil || at.Before(now) {
+			at = at.AddDate(0, 0, 1)
+		}
+		return at
+	}
 	slices.SortStableFunc(trains, func(a, b Train) int {
 		switch ra, rb := running(a), running(b); {
 		case ra && rb:
@@ -234,7 +257,16 @@ func runningFirst(trains []Train) {
 		case rb:
 			return 1
 		}
-		return 0
+		switch na, nb := next(a), next(b); {
+		case na.IsZero() && nb.IsZero():
+			return 0
+		case na.IsZero():
+			return 1
+		case nb.IsZero():
+			return -1
+		default:
+			return na.Compare(nb)
+		}
 	})
 }
 
